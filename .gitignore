@@ -1,0 +1,4 @@
+.env
+demo-agent.exe
+coverage.out
+.idea/
