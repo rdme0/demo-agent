@@ -1,0 +1,10 @@
+services:
+  demo-agent:
+    build: .
+    env_file: .env
+    environment:
+      DEMO_AGENT_HOST: 0.0.0.0
+      DEMO_AGENT_PORT: 8090
+    ports:
+      - "127.0.0.1:8090:8090"
+    restart: unless-stopped
