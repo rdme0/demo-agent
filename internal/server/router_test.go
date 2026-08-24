@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
-	"demo-agent/internal/agent"
+	"demo-agent/internal/app"
 	"demo-agent/internal/config"
-	"demo-agent/internal/runtime"
 
 	"github.com/gin-gonic/gin"
 	x402 "github.com/x402-foundation/x402/go/v2"
@@ -24,7 +24,7 @@ func TestServerReturnsFixtureAndUnknownAgentResponses(t *testing.T) {
 		outputKey string
 		want      any
 	}{
-		{slug: "investment", outputKey: "recommendation", want: "balanced"},
+		{slug: "investment", outputKey: "", want: "# 투자 분석 요약"},
 		{slug: "financial", outputKey: "revenueGrowth", want: 0.14},
 		{slug: "news", outputKey: "sentiment", want: "positive"},
 		{slug: "risk", outputKey: "riskLevel", want: "medium"},
@@ -37,14 +37,20 @@ func TestServerReturnsFixtureAndUnknownAgentResponses(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Fatalf("%s returned %d", testCase.slug, response.Code)
 		}
-		var payload struct {
-			Output map[string]any `json:"output"`
-		}
+		var payload map[string]any
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("decode %s response: %v", testCase.slug, err)
 		}
-		if payload.Output[testCase.outputKey] != testCase.want {
-			t.Fatalf("%s output mismatch: %#v", testCase.slug, payload.Output)
+		output := payload["output"]
+		if testCase.outputKey == "" {
+			if value, ok := output.(string); !ok || !strings.Contains(value, testCase.want.(string)) {
+				t.Fatalf("%s output mismatch: %#v", testCase.slug, output)
+			}
+			continue
+		}
+		values, ok := output.(map[string]any)
+		if !ok || values[testCase.outputKey] != testCase.want {
+			t.Fatalf("%s output mismatch: %#v", testCase.slug, output)
 		}
 	}
 }
@@ -62,75 +68,68 @@ func TestServerReturnsHealthResponse(t *testing.T) {
 }
 
 func TestServerProtectsConfiguredRoutesWithX402(t *testing.T) {
-	registry, err := agent.NewRegistry(agent.NewFixtureAgents()...)
-	if err != nil {
-		t.Fatalf("new registry: %v", err)
-	}
-	application, err := New(config.Config{
+	application, err := app.New(config.Config{
+		AgentMode: config.AgentModeFixture,
 		Payment: config.PaymentConfig{
 			Mode: config.PaymentModeX402,
 			Agents: map[string]config.PaymentTerms{
 				"investment": {AmountAtomic: "1000", PayTo: "0x0000000000000000000000000000000000000001"},
+				"financial":  {AmountAtomic: "2000", PayTo: "0x0000000000000000000000000000000000000002"},
 			},
 		},
-	}, registry, callbackStub{}, facilitatorStub{})
+	}, facilitatorStub{})
 	if err != nil {
 		t.Fatalf("new x402 server: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/agents/investment/invoke", nil)
-	response := httptest.NewRecorder()
-	application.ServeHTTP(response, request)
+	tests := []struct {
+		slug   string
+		amount string
+		payTo  string
+	}{
+		{slug: "investment", amount: "1000", payTo: "0x0000000000000000000000000000000000000001"},
+		{slug: "financial", amount: "2000", payTo: "0x0000000000000000000000000000000000000002"},
+	}
+	for _, test := range tests {
+		request := httptest.NewRequest(http.MethodPost, "/agents/"+test.slug+"/invoke", nil)
+		response := httptest.NewRecorder()
+		application.ServeHTTP(response, request)
 
-	if response.Code != http.StatusPaymentRequired {
-		t.Fatalf("expected 402, got %d: %s", response.Code, response.Body.String())
-	}
-	paymentRequired := response.Header().Get("Payment-Required")
-	if paymentRequired == "" {
-		t.Fatal("expected PAYMENT-REQUIRED header")
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(paymentRequired)
-	if err != nil {
-		t.Fatalf("decode payment required: %v", err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(decoded, &payload); err != nil {
-		t.Fatalf("decode payment required JSON: %v", err)
-	}
-	accepts := payload["accepts"].([]any)
-	requirement := accepts[0].(map[string]any)
-	if requirement["network"] != config.BaseSepoliaNetwork || requirement["asset"] != config.BaseSepoliaUSDC || requirement["amount"] != "1000" {
-		t.Fatalf("unexpected payment requirement: %#v", requirement)
-	}
-	extra, exists := requirement["extra"].(map[string]any)
-	if !exists {
-		t.Fatalf("expected EIP-712 asset metadata: %#v", requirement)
-	}
-	if extra["assetTransferMethod"] != "eip3009" {
-		t.Fatalf("unexpected asset transfer method: %#v", extra["assetTransferMethod"])
+		if response.Code != http.StatusPaymentRequired {
+			t.Fatalf("expected %s 402, got %d: %s", test.slug, response.Code, response.Body.String())
+		}
+		decoded, decodeErr := base64.StdEncoding.DecodeString(response.Header().Get("Payment-Required"))
+		if decodeErr != nil {
+			t.Fatalf("decode %s payment required: %v", test.slug, decodeErr)
+		}
+		var payload map[string]any
+		if decodeErr := json.Unmarshal(decoded, &payload); decodeErr != nil {
+			t.Fatalf("decode %s payment required JSON: %v", test.slug, decodeErr)
+		}
+		accepts := payload["accepts"].([]any)
+		requirement := accepts[0].(map[string]any)
+		if requirement["network"] != config.BaseSepoliaNetwork || requirement["asset"] != config.BaseSepoliaUSDC || requirement["amount"] != test.amount || requirement["payTo"] != test.payTo {
+			t.Fatalf("unexpected %s payment requirement: %#v", test.slug, requirement)
+		}
+		extra, exists := requirement["extra"].(map[string]any)
+		if !exists || extra["assetTransferMethod"] != "eip3009" {
+			t.Fatalf("unexpected %s EIP-712 metadata: %#v", test.slug, extra)
+		}
 	}
 }
 
 func newSimulatedServer(t *testing.T) *gin.Engine {
 	t.Helper()
 
-	registry, err := agent.NewRegistry(agent.NewFixtureAgents()...)
-	if err != nil {
-		t.Fatalf("new registry: %v", err)
-	}
-	application, err := New(config.Config{Payment: config.PaymentConfig{Mode: config.PaymentModeSimulated}}, registry, callbackStub{}, nil)
+	application, err := app.New(config.Config{
+		AgentMode: config.AgentModeFixture,
+		Payment:   config.PaymentConfig{Mode: config.PaymentModeSimulated},
+	}, nil)
 	if err != nil {
 		t.Fatalf("new simulated server: %v", err)
 	}
 
 	return application
-}
-
-type callbackStub struct{}
-
-func (callbackStub) Invoke(context.Context, runtime.Request, string) (map[string]any, error) {
-	return map[string]any{}, nil
 }
 
 type facilitatorStub struct{}

@@ -1,4 +1,4 @@
-package runtime
+package client
 
 import (
 	"context"
@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	runtimeDTO "demo-agent/internal/runtime/dto"
 )
 
 func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
@@ -18,15 +21,15 @@ func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
 		if request.Header.Get("Idempotency-Key") == "" {
 			t.Fatal("expected idempotency key")
 		}
-		_, _ = writer.Write([]byte(`{"output":{"child":true}}`))
+		_, _ = writer.Write([]byte(`{"isSuccess":true,"message":"success","errorCode":null,"result":{"stepId":"child-step","output":{"child":true},"costAtomic":"1000"}}`))
 	}))
 	defer server.Close()
 
 	client := NewCallbackClient()
-	results, err := client.Invoke(context.Background(), Request{
+	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		ParentStepID: "step-1",
 		CallbackURL:  server.URL,
-		Dependencies: []Dependency{{AgentVersionID: "financial-v1", CallPath: []string{"investment", "financial"}}},
+		Dependencies: []runtimeDTO.Dependency{{AgentVersionID: "financial-v1", CallPath: []string{"investment", "financial"}}},
 	}, "Bearer invocation-token")
 	if err != nil {
 		t.Fatalf("invoke callback: %v", err)
@@ -36,17 +39,47 @@ func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
 	}
 }
 
+func TestCallbackClientInvokesIndependentDependenciesConcurrently(t *testing.T) {
+	var invocationCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		invocationCount.Add(1)
+		time.Sleep(200 * time.Millisecond)
+		_, _ = writer.Write([]byte(`{"isSuccess":true,"result":{"output":{"completed":true}}}`))
+	}))
+	defer server.Close()
+
+	client := NewCallbackClient()
+	startedAt := time.Now()
+	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
+		CallbackURL: server.URL,
+		Dependencies: []runtimeDTO.Dependency{
+			{CallPath: []string{"investment", "financial"}},
+			{CallPath: []string{"investment", "news"}},
+			{CallPath: []string{"investment", "risk"}},
+		},
+	}, "")
+	if err != nil {
+		t.Fatalf("invoke concurrent callbacks: %v", err)
+	}
+	if invocationCount.Load() != 3 || len(results) != 3 {
+		t.Fatalf("unexpected callback results: count=%d results=%#v", invocationCount.Load(), results)
+	}
+	if elapsed := time.Since(startedAt); elapsed >= 500*time.Millisecond {
+		t.Fatalf("dependencies were not invoked concurrently: %s", elapsed)
+	}
+}
+
 func TestCallbackClientPinsLocalhostToIPv4Loopback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte(`{"output":"pinned"}`))
+		_, _ = writer.Write([]byte(`{"isSuccess":true,"result":{"output":"pinned"}}`))
 	}))
 	defer server.Close()
 
 	callbackURL := strings.Replace(server.URL, "127.0.0.1", "localhost", 1)
 	client := NewCallbackClient()
-	results, err := client.Invoke(context.Background(), Request{
+	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  callbackURL,
-		Dependencies: []Dependency{{CallPath: []string{"financial"}}},
+		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"financial"}}},
 	}, "")
 	if err != nil {
 		t.Fatalf("invoke pinned localhost callback: %v", err)
@@ -63,9 +96,9 @@ func TestCallbackClientRejectsRedirect(t *testing.T) {
 	defer server.Close()
 
 	client := NewCallbackClient()
-	_, err := client.Invoke(context.Background(), Request{
+	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  server.URL,
-		Dependencies: []Dependency{{CallPath: []string{"risk"}}},
+		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"risk"}}},
 	}, "")
 	if err == nil {
 		t.Fatal("expected redirect to fail")
@@ -74,9 +107,9 @@ func TestCallbackClientRejectsRedirect(t *testing.T) {
 
 func TestCallbackClientRejectsOversizedRequest(t *testing.T) {
 	client := NewCallbackClient()
-	_, err := client.Invoke(context.Background(), Request{
+	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL: "http://127.0.0.1/runtime",
-		Dependencies: []Dependency{{
+		Dependencies: []runtimeDTO.Dependency{{
 			CallPath: []string{"risk"},
 			Input:    strings.Repeat("x", maxBodyBytes),
 		}},
@@ -101,14 +134,14 @@ func TestCallbackClientSetsDeadlineOnCallbackRequest(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(`{"output":true}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"isSuccess":true,"result":{"output":true}}`)),
 			}, nil
 		})}
 	}
 
-	_, err := client.Invoke(context.Background(), Request{
+	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  "http://127.0.0.1/runtime",
-		Dependencies: []Dependency{{CallPath: []string{"risk"}}},
+		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"risk"}}},
 	}, "")
 	if err != nil {
 		t.Fatalf("invoke callback: %v", err)
@@ -117,7 +150,7 @@ func TestCallbackClientSetsDeadlineOnCallbackRequest(t *testing.T) {
 
 func TestCallbackClientRejectsNonLoopbackURL(t *testing.T) {
 	client := NewCallbackClient()
-	_, err := client.Invoke(context.Background(), Request{CallbackURL: "http://example.com/runtime"}, "")
+	_, err := client.Invoke(context.Background(), runtimeDTO.Request{CallbackURL: "http://example.com/runtime"}, "")
 	if err == nil {
 		t.Fatal("expected non-loopback callback to fail")
 	}
@@ -130,7 +163,7 @@ func TestCallbackClientRejectsCredentialAndFragmentURLs(t *testing.T) {
 		"http://token@127.0.0.1/runtime",
 		"http://127.0.0.1/runtime#fragment",
 	} {
-		_, err := client.Invoke(context.Background(), Request{CallbackURL: callbackURL}, "")
+		_, err := client.Invoke(context.Background(), runtimeDTO.Request{CallbackURL: callbackURL}, "")
 		if err == nil {
 			t.Fatalf("expected callback URL to fail: %s", callbackURL)
 		}
@@ -149,12 +182,28 @@ func TestCallbackClientRejectsOversizedResponse(t *testing.T) {
 		})}
 	}
 
-	_, err := client.Invoke(context.Background(), Request{
+	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  "http://127.0.0.1/runtime",
-		Dependencies: []Dependency{{CallPath: []string{"risk"}}},
+		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"risk"}}},
 	}, "")
 	if err == nil {
 		t.Fatal("expected oversized response to fail")
+	}
+}
+
+func TestCallbackClientRejectsMissingCommonResponseResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = writer.Write([]byte(`{"isSuccess":true,"result":null}`))
+	}))
+	defer server.Close()
+
+	client := NewCallbackClient()
+	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
+		CallbackURL:  server.URL,
+		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"risk"}}},
+	}, "")
+	if err == nil {
+		t.Fatal("expected missing callback result to fail")
 	}
 }
 

@@ -15,6 +15,7 @@ func TestLoadAcceptsSimulatedMode(t *testing.T) {
 	configuration, err := Load(environment(map[string]string{
 		"DEMO_AGENT_HOST":   "127.0.0.1",
 		"DEMO_AGENT_PORT":   "8090",
+		"DEMO_AGENT_MODE":   AgentModeFixture,
 		"DEMO_PAYMENT_MODE": PaymentModeSimulated,
 	}))
 	if err != nil {
@@ -29,6 +30,7 @@ func TestLoadRejectsInvalidPaymentMode(t *testing.T) {
 	_, err := Load(environment(map[string]string{
 		"DEMO_AGENT_HOST":   "127.0.0.1",
 		"DEMO_AGENT_PORT":   "8090",
+		"DEMO_AGENT_MODE":   AgentModeFixture,
 		"DEMO_PAYMENT_MODE": "live",
 	}))
 	if err == nil {
@@ -41,11 +43,40 @@ func TestLoadRejectsInvalidPort(t *testing.T) {
 		_, err := Load(environment(map[string]string{
 			"DEMO_AGENT_HOST":   "127.0.0.1",
 			"DEMO_AGENT_PORT":   port,
+			"DEMO_AGENT_MODE":   AgentModeFixture,
 			"DEMO_PAYMENT_MODE": PaymentModeSimulated,
 		}))
 		if err == nil {
 			t.Fatalf("expected invalid port to fail: %s", port)
 		}
+	}
+}
+
+func TestLoadAcceptsOpenAIModeWithExplicitKey(t *testing.T) {
+	configuration, err := Load(environment(map[string]string{
+		"DEMO_AGENT_HOST":   "127.0.0.1",
+		"DEMO_AGENT_PORT":   "8090",
+		"DEMO_AGENT_MODE":   AgentModeOpenAI,
+		"DEMO_PAYMENT_MODE": PaymentModeSimulated,
+		"OPEN_AI_KEY":       "test-key",
+	}))
+	if err != nil {
+		t.Fatalf("load OpenAI configuration: %v", err)
+	}
+	if configuration.OpenAI.Model != OpenAIModel {
+		t.Fatalf("unexpected OpenAI model: %s", configuration.OpenAI.Model)
+	}
+}
+
+func TestLoadRejectsOpenAIModeWithoutKey(t *testing.T) {
+	_, err := Load(environment(map[string]string{
+		"DEMO_AGENT_HOST":   "127.0.0.1",
+		"DEMO_AGENT_PORT":   "8090",
+		"DEMO_AGENT_MODE":   AgentModeOpenAI,
+		"DEMO_PAYMENT_MODE": PaymentModeSimulated,
+	}))
+	if err == nil {
+		t.Fatal("expected missing OpenAI key to fail")
 	}
 }
 
@@ -73,16 +104,21 @@ func x402Environment() map[string]string {
 	return map[string]string{
 		"DEMO_AGENT_HOST":              "127.0.0.1",
 		"DEMO_AGENT_PORT":              "8090",
+		"DEMO_AGENT_MODE":              AgentModeFixture,
 		"DEMO_PAYMENT_MODE":            PaymentModeX402,
 		"X402_FACILITATOR_URL":         "https://facilitator.test",
 		"DEMO_INVESTMENT_PRICE_ATOMIC": "1000",
 		"DEMO_INVESTMENT_PAY_TO":       "0x0000000000000000000000000000000000000001",
+		"DEMO_INVESTMENT_ASSET":        BaseSepoliaUSDC,
 		"DEMO_FINANCIAL_PRICE_ATOMIC":  "1000",
 		"DEMO_FINANCIAL_PAY_TO":        "0x0000000000000000000000000000000000000002",
+		"DEMO_FINANCIAL_ASSET":         BaseSepoliaUSDC,
 		"DEMO_NEWS_PRICE_ATOMIC":       "1000",
 		"DEMO_NEWS_PAY_TO":             "0x0000000000000000000000000000000000000003",
+		"DEMO_NEWS_ASSET":              BaseSepoliaUSDC,
 		"DEMO_RISK_PRICE_ATOMIC":       "1000",
 		"DEMO_RISK_PAY_TO":             "0x0000000000000000000000000000000000000004",
+		"DEMO_RISK_ASSET":              BaseSepoliaUSDC,
 	}
 }
 

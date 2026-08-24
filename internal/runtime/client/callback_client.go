@@ -1,4 +1,4 @@
-package runtime
+package client
 
 import (
 	"bytes"
@@ -14,24 +14,14 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	runtimeDTO "demo-agent/internal/runtime/dto"
 )
 
 const (
 	maxBodyBytes = 1 << 20
 	callbackTTL  = 30 * time.Second
 )
-
-type Dependency struct {
-	AgentVersionID string   `json:"agentVersionId"`
-	CallPath       []string `json:"callPath"`
-	Input          any      `json:"input,omitempty"`
-}
-
-type Request struct {
-	ParentStepID string       `json:"parentStepId"`
-	CallbackURL  string       `json:"callbackUrl"`
-	Dependencies []Dependency `json:"dependencies"`
-}
 
 type CallbackClient struct {
 	newHTTPClient func(string, string) *http.Client
@@ -41,28 +31,54 @@ func NewCallbackClient() *CallbackClient {
 	return &CallbackClient{newHTTPClient: newPinnedHTTPClient}
 }
 
-func (client *CallbackClient) Invoke(ctx context.Context, callback Request, authorization string) (map[string]any, error) {
+func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Request, authorization string) (map[string]any, error) {
 	parsedURL, err := validateCallbackURL(callback.CallbackURL)
 	if err != nil {
 		return nil, err
 	}
 
 	results := make(map[string]any, len(callback.Dependencies))
-	for _, dependency := range callback.Dependencies {
-		output, err := client.invokeDependency(ctx, parsedURL, callback.ParentStepID, dependency, authorization)
-		if err != nil {
-			return nil, err
-		}
+	type dependencyResult struct {
+		slug   string
+		output any
+		err    error
+	}
+	resultChannel := make(chan dependencyResult, len(callback.Dependencies))
+	callbackContext, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-		if len(dependency.CallPath) > 0 {
-			results[dependency.CallPath[len(dependency.CallPath)-1]] = output
+	for _, dependency := range callback.Dependencies {
+		go func(dependency runtimeDTO.Dependency) {
+			output, err := client.invokeDependency(
+				callbackContext,
+				parsedURL,
+				callback.ParentStepID,
+				dependency,
+				authorization,
+			)
+			slug := ""
+			if len(dependency.CallPath) > 0 {
+				slug = dependency.CallPath[len(dependency.CallPath)-1]
+			}
+			resultChannel <- dependencyResult{slug: slug, output: output, err: err}
+		}(dependency)
+	}
+
+	for range callback.Dependencies {
+		result := <-resultChannel
+		if result.err != nil {
+			cancel()
+			return nil, result.err
+		}
+		if result.slug != "" {
+			results[result.slug] = result.output
 		}
 	}
 
 	return results, nil
 }
 
-func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL *url.URL, parentStepID string, dependency Dependency, authorization string) (any, error) {
+func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL *url.URL, parentStepID string, dependency runtimeDTO.Dependency, authorization string) (any, error) {
 	payload := map[string]any{
 		"parentStepId":   parentStepID,
 		"agentVersionId": dependency.AgentVersionID,
@@ -110,14 +126,15 @@ func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL 
 		return nil, fmt.Errorf("runtime callback response exceeds 1MB")
 	}
 
-	var decoded struct {
-		Output any `json:"output"`
-	}
+	var decoded runtimeDTO.CallbackResponse
 	if err := json.Unmarshal(responseBody, &decoded); err != nil {
 		return nil, fmt.Errorf("decode runtime callback response: %w", err)
 	}
+	if !decoded.IsSuccess || decoded.Result == nil {
+		return nil, fmt.Errorf("runtime callback response is unsuccessful or missing result")
+	}
 
-	return decoded.Output, nil
+	return decoded.Result.Output, nil
 }
 
 func validateCallbackURL(rawURL string) (*url.URL, error) {

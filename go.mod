@@ -4,6 +4,8 @@ go 1.26
 
 require (
 	github.com/gin-gonic/gin v1.11.0
+	github.com/joho/godotenv v1.5.1
+	github.com/openai/openai-go v1.12.0
 	github.com/x402-foundation/x402/go/v2 v2.22.0
 )
 
@@ -45,6 +47,10 @@ require (
 	github.com/quic-go/quic-go v0.55.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/supranational/blst v0.3.16 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
