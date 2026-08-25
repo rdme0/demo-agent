@@ -12,18 +12,24 @@ Copy-Item .env.example .env
 go run ./cmd/demo-agent
 ```
 
-fixture와 OpenAI 모드에서는 `investment`, `financial`, `news`, `risk` 네 Agent가 고정된 경로로 제공됩니다. Marketplace에서 공급자를 여러 개 등록하는 책임은 Spring AgentStore에 있으며, Go 서버 내부에 별도 slug 매핑을 설정하지 않습니다.
+fixture와 OpenAI 모드는 하나의 catalog에서 13개 Agent를 제공합니다. 쉬운 사용 Marketplace에는 Root Agent 세 개만 보이고,
+개발자 모드에는 모든 Agent가 보입니다.
 
-`DEMO_AGENT_MODE=fixture`는 네 개의 결정적 fixture 응답을 사용하고, `DEMO_AGENT_MODE=openai`는 `OPEN_AI_KEY`로 네 agent가 OpenAI Responses
-API의 `gpt-5.6-luna` 모델을 호출합니다. OpenAI mode에서는 `financial`, `news`, `risk`가 웹 검색으로 최신 근거를 수집하고 `investment`가 이를 한국어
-Markdown으로 종합합니다. 최종 투자 분석에는 검증된 HTTPS 출처 링크 3~5개가 붙습니다. 검색이 실패하거나 출처가 세 개 미만이면 근거 없는 빈 결과를 만들지 않고
-호출을 실패 처리합니다. 웹 검색과 모델 호출에는 OpenAI API 비용이 발생합니다. 키는 반드시 명시해야 하며 로그나 응답에 노출하지 않습니다.
+| 분야 | Root Agent | 전문 Agent |
+|---|---|---|
+| 투자 | `investment-analysis` | `financial-analysis`, `market-news-fast`, `market-news-deep`, `investment-risk` |
+| 쇼핑 | `shopping-assistant` | `product-search`, `review-analysis`, `price-comparison` |
+| 여행 | `travel-planner` | `destination-research`, `weather-forecast`, `travel-safety` |
 
-`DEMO_PAYMENT_MODE=simulated`는 결제 없이 agent를 호출합니다. `x402` mode에서는 `X402_FACILITATOR_URL`과 investment, financial, news,
-risk의 atomic price/payTo/asset이 필요합니다. 등록한 slug에 해당하는 값만 검사하며 asset은 공식 Base Sepolia USDC
-`0x036CbD53842c5426634e7929541eC2318f3dCF7e`만 허용합니다. 결제 설정은 네 고정 Agent 경로에 대해 `DEMO_INVESTMENT_*`, `DEMO_FINANCIAL_*`, `DEMO_NEWS_*`, `DEMO_RISK_*`로 제공합니다.
+Root는 세 전문 Agent를 callback으로 호출해 Markdown을 종합합니다. `market-news-fast`와 `market-news-deep`은 같은
+`market-news-analysis` Function Contract의 대체 공급자이며, 투자 Root는 marketplace + `lowest_price`로 전자를 선택합니다.
 
-fixture/simulated 조합은 하나의 Go 서버에서 네 Agent를 모두 제공합니다.
+`DEMO_AGENT_MODE=fixture`는 Schema를 만족하는 결정적 결과와 각 Agent별 HTTPS 출처 세 개를 사용합니다.
+`DEMO_AGENT_MODE=openai`는 `OPEN_AI_KEY`로 전문 Agent가 OpenAI Responses API의 `gpt-5.6-luna` 모델과 웹 검색을 사용하고,
+Root가 검증된 dependency 출처를 붙여 Markdown을 완성합니다. 검색·모델 호출에는 OpenAI API 비용이 발생합니다.
+
+`DEMO_PAYMENT_MODE=simulated`는 결제 없이 호출합니다. `x402` mode는 `X402_FACILITATOR_URL`만 추가로 필요합니다.
+Agent별 price, 고유 `payTo`, Base Sepolia USDC asset은 catalog에 고정되어 있어 `.env`에서 바꾸지 않습니다.
 
 ```powershell
 Set-Location ../agent-store-infra
@@ -32,14 +38,14 @@ Copy-Item ../demo-agent/.env.example ../demo-agent/.env
 docker compose --env-file ../agent-store-be/.env up --build -d
 ```
 
-개발 Compose에서는 demo-agent가 Spring API 컨테이너의 네트워크 네임스페이스를 공유합니다. 따라서
-`investment`, `financial`, `news`, `risk`는 호스트의 `127.0.0.1:8090`과 API 컨테이너의 같은 주소에서 제공됩니다.
+개발 Compose에서는 demo-agent가 Spring API 컨테이너의 네트워크 네임스페이스를 공유합니다. 빈 DB의 demo catalog는 Spring `dev`
+initializer가 직접 생성하며, Go 서비스는 invocation만 담당합니다.
 
 서버를 실행한 뒤 다음 요청으로 실제 OpenAI agent를 호출할 수 있습니다.
 
 ```powershell
 Invoke-RestMethod -Method Post `
-    -Uri http://127.0.0.1:8090/agents/investment/invoke `
+    -Uri http://127.0.0.1:8090/agents/investment-analysis/invoke `
     -ContentType 'application/json' `
     -Body '{"input":{"ticker":"ACME"}}'
 ```
@@ -47,7 +53,7 @@ Invoke-RestMethod -Method Post `
 ## HTTP 계약
 
 - `GET /health` → `{ "status": "ok" }`
-- `POST /agents/:agent/invoke` → fixture 또는 등록 agent의 output과 dependencyResults
+- `POST /agents/:code/invoke` → fixture 또는 catalog Agent의 output과 dependencyResults
 
 현재 agent는 `internal/agent/model`의 `Agent` interface를 `internal/agent/service`에서 등록합니다. OpenAI adapter는
 `internal/agent/client`에 두어 이후 다른 LLM provider도 같은 service 경계에 주입할 수 있습니다. HTTP, x402, callback 안전 경계는 provider와 독립적으로
@@ -59,7 +65,8 @@ callback은 거절합니다.
 ## 디렉토리 구조
 
 ```text
-cmd/demo-agent/       실행 진입점과 의존성 조립
+cmd/demo-agent/       서버 실행 진입점과 의존성 조립
+internal/catalog/     Go runtime Agent 동작 정의
 internal/app/         애플리케이션 구성
 internal/config/      명시적 환경변수 로딩과 검증
 internal/agent/       agent controller, service, dto, model
