@@ -12,6 +12,6 @@ type Result struct {
 }
 
 type Agent interface {
-	Slug() string
+	Code() string
 	Invoke(context.Context, Invocation) (Result, error)
 }

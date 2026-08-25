@@ -19,22 +19,22 @@ func NewAgentRegistry(registeredAgents ...model.Agent) (*AgentRegistry, error) {
 			return nil, fmt.Errorf("registered agent must not be nil")
 		}
 
-		slug := registeredAgent.Slug()
-		if slug == "" {
-			return nil, fmt.Errorf("registered agent slug must not be empty")
+		code := registeredAgent.Code()
+		if code == "" {
+			return nil, fmt.Errorf("registered agent code must not be empty")
 		}
-		if _, exists := agents[slug]; exists {
-			return nil, fmt.Errorf("agent %q is already registered", slug)
+		if _, exists := agents[code]; exists {
+			return nil, fmt.Errorf("agent %q is already registered", code)
 		}
 
-		agents[slug] = registeredAgent
+		agents[code] = registeredAgent
 	}
 
 	return &AgentRegistry{agents: agents}, nil
 }
 
-func (registry *AgentRegistry) Invoke(ctx context.Context, slug string, invocation model.Invocation) (model.Result, error) {
-	registeredAgent, exists := registry.agents[slug]
+func (registry *AgentRegistry) Invoke(ctx context.Context, code string, invocation model.Invocation) (model.Result, error) {
+	registeredAgent, exists := registry.agents[code]
 	if !exists {
 		return model.Result{Output: map[string]any{"status": "unknown-agent"}}, nil
 	}

@@ -81,7 +81,7 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
-	agents, err := loadAgentTerms(lookup)
+	agents, err := loadAgentTerms()
 	if err != nil {
 		return Config{}, err
 	}

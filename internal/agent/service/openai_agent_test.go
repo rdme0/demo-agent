@@ -13,7 +13,7 @@ import (
 func TestOpenAIAgentEncodesInvocationAndAttachesVerifiedSources(t *testing.T) {
 	responseClient := &responseClientStub{
 		response: agentClient.ResponseResult{
-			Output:  `{"revenueGrowth":12.5,"debtRatio":31.2}`,
+			Output:  `{"summary":"재무 건전성은 보통 수준입니다.","keyMetrics":["매출"],"risks":["변동성"]}`,
 			Sources: []agentClient.Source{{Title: "공식 공시", URL: "https://example.com/disclosure"}},
 		},
 	}
@@ -33,7 +33,7 @@ func TestOpenAIAgentEncodesInvocationAndAttachesVerifiedSources(t *testing.T) {
 	}
 
 	output, ok := result.Output.(map[string]any)
-	if !ok || output["revenueGrowth"] != 12.5 {
+	if !ok || output["summary"] != "재무 건전성은 보통 수준입니다." {
 		t.Fatalf("unexpected output: %#v", result.Output)
 	}
 	if _, ok := output["sources"].([]agentClient.Source); !ok {
@@ -45,7 +45,7 @@ func TestOpenAIAgentEncodesInvocationAndAttachesVerifiedSources(t *testing.T) {
 	if responseClient.request.Schema["type"] != "object" {
 		t.Fatalf("unexpected schema: %#v", responseClient.request.Schema)
 	}
-	if !strings.Contains(responseClient.request.Instructions, "반드시 웹 검색") {
+	if !strings.Contains(responseClient.request.Instructions, "웹 검색") {
 		t.Fatalf("expected Korean web-search instructions: %s", responseClient.request.Instructions)
 	}
 

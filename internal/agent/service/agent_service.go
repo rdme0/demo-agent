@@ -34,7 +34,7 @@ func NewAgentService(registry *AgentRegistry, callbackClient CallbackInvoker) (*
 
 func (service *AgentService) Invoke(
 	ctx context.Context,
-	slug string,
+	code string,
 	request dto.InvocationRequest,
 	authorization string,
 ) (dto.InvocationResponse, error) {
@@ -47,7 +47,7 @@ func (service *AgentService) Invoke(
 		dependencyResults = resolved
 	}
 
-	result, err := service.registry.Invoke(ctx, slug, model.Invocation{
+	result, err := service.registry.Invoke(ctx, code, model.Invocation{
 		Input:             request.Input,
 		DependencyResults: dependencyResults,
 	})
@@ -56,7 +56,8 @@ func (service *AgentService) Invoke(
 	}
 
 	return dto.InvocationResponse{
-		Agent:             slug,
+		Transport:         dto.DemoTransport,
+		Agent:             code,
 		Output:            result.Output,
 		DependencyResults: dependencyResults,
 	}, nil

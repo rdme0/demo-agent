@@ -20,8 +20,8 @@ func NewMiddleware(payment config.PaymentConfig, facilitator x402.FacilitatorCli
 	}
 
 	routes := make(x402http.RoutesConfig, len(payment.Agents))
-	for slug, terms := range payment.Agents {
-		routes["POST /agents/"+slug+"/invoke"] = x402http.RouteConfig{
+	for code, terms := range payment.Agents {
+		routes["POST /agents/"+code+"/invoke"] = x402http.RouteConfig{
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",
@@ -36,7 +36,7 @@ func NewMiddleware(payment config.PaymentConfig, facilitator x402.FacilitatorCli
 					},
 				},
 			},
-			Description: slug + " demo agent invocation",
+			Description: code + " demo agent invocation",
 			MimeType:    "application/json",
 		}
 	}

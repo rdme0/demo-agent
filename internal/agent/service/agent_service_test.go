@@ -9,13 +9,13 @@ import (
 	runtimeDTO "demo-agent/internal/runtime/dto"
 )
 
-func TestNewAgentRegistryRejectsDuplicateSlugs(t *testing.T) {
+func TestNewAgentRegistryRejectsDuplicateCodes(t *testing.T) {
 	_, err := NewAgentRegistry(
-		FixtureAgent{slug: "investment"},
-		FixtureAgent{slug: "investment"},
+		staticAgent{code: "duplicate"},
+		staticAgent{code: "duplicate"},
 	)
 	if err == nil {
-		t.Fatal("expected duplicate slug to fail")
+		t.Fatal("expected duplicate code to fail")
 	}
 }
 
@@ -42,6 +42,9 @@ func TestAgentServiceResolvesRuntimeDependenciesBeforeInvocation(t *testing.T) {
 	if response.Output != "resolved" {
 		t.Fatalf("unexpected output: %#v", response.Output)
 	}
+	if response.Transport != dto.DemoTransport {
+		t.Fatalf("unexpected transport: %#v", response.Transport)
+	}
 }
 
 type callbackStub struct{}
@@ -52,7 +55,19 @@ func (callbackStub) Invoke(context.Context, runtimeDTO.Request, string) (map[str
 
 type dependencyAwareAgent struct{}
 
-func (dependencyAwareAgent) Slug() string {
+type staticAgent struct {
+	code string
+}
+
+func (agent staticAgent) Code() string {
+	return agent.code
+}
+
+func (staticAgent) Invoke(context.Context, model.Invocation) (model.Result, error) {
+	return model.Result{}, nil
+}
+
+func (dependencyAwareAgent) Code() string {
 	return "dependency-aware"
 }
 

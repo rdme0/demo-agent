@@ -39,7 +39,7 @@ func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Re
 
 	results := make(map[string]any, len(callback.Dependencies))
 	type dependencyResult struct {
-		slug   string
+		code   string
 		output any
 		err    error
 	}
@@ -56,11 +56,11 @@ func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Re
 				dependency,
 				authorization,
 			)
-			slug := ""
+			code := ""
 			if len(dependency.CallPath) > 0 {
-				slug = dependency.CallPath[len(dependency.CallPath)-1]
+				code = dependency.CallPath[len(dependency.CallPath)-1]
 			}
-			resultChannel <- dependencyResult{slug: slug, output: output, err: err}
+			resultChannel <- dependencyResult{code: code, output: output, err: err}
 		}(dependency)
 	}
 
@@ -70,8 +70,8 @@ func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Re
 			cancel()
 			return nil, result.err
 		}
-		if result.slug != "" {
-			results[result.slug] = result.output
+		if result.code != "" {
+			results[result.code] = result.output
 		}
 	}
 

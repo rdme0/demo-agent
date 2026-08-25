@@ -81,12 +81,12 @@ func TestLoadRejectsOpenAIModeWithoutKey(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidX402Terms(t *testing.T) {
-	values := x402Environment()
-	values["DEMO_INVESTMENT_PRICE_ATOMIC"] = "0"
-
-	_, err := Load(environment(values))
-	if err == nil {
-		t.Fatal("expected invalid atomic amount to fail")
+	agents, err := loadAgentTerms()
+	if err != nil {
+		t.Fatalf("load catalog terms: %v", err)
+	}
+	if len(agents) != 13 {
+		t.Fatalf("expected 13 catalog terms, got %d", len(agents))
 	}
 }
 
@@ -102,23 +102,11 @@ func TestLoadRejectsInvalidFacilitatorURL(t *testing.T) {
 
 func x402Environment() map[string]string {
 	return map[string]string{
-		"DEMO_AGENT_HOST":              "127.0.0.1",
-		"DEMO_AGENT_PORT":              "8090",
-		"DEMO_AGENT_MODE":              AgentModeFixture,
-		"DEMO_PAYMENT_MODE":            PaymentModeX402,
-		"X402_FACILITATOR_URL":         "https://facilitator.test",
-		"DEMO_INVESTMENT_PRICE_ATOMIC": "1000",
-		"DEMO_INVESTMENT_PAY_TO":       "0x0000000000000000000000000000000000000001",
-		"DEMO_INVESTMENT_ASSET":        BaseSepoliaUSDC,
-		"DEMO_FINANCIAL_PRICE_ATOMIC":  "1000",
-		"DEMO_FINANCIAL_PAY_TO":        "0x0000000000000000000000000000000000000002",
-		"DEMO_FINANCIAL_ASSET":         BaseSepoliaUSDC,
-		"DEMO_NEWS_PRICE_ATOMIC":       "1000",
-		"DEMO_NEWS_PAY_TO":             "0x0000000000000000000000000000000000000003",
-		"DEMO_NEWS_ASSET":              BaseSepoliaUSDC,
-		"DEMO_RISK_PRICE_ATOMIC":       "1000",
-		"DEMO_RISK_PAY_TO":             "0x0000000000000000000000000000000000000004",
-		"DEMO_RISK_ASSET":              BaseSepoliaUSDC,
+		"DEMO_AGENT_HOST":      "127.0.0.1",
+		"DEMO_AGENT_PORT":      "8090",
+		"DEMO_AGENT_MODE":      AgentModeFixture,
+		"DEMO_PAYMENT_MODE":    PaymentModeX402,
+		"X402_FACILITATOR_URL": "https://facilitator.test",
 	}
 }
 

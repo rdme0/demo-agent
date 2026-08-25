@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"demo-agent/internal/catalog"
 	paymentModel "demo-agent/internal/payment/model"
 )
 
@@ -29,33 +30,21 @@ type PaymentConfig struct {
 
 type PaymentTerms = paymentModel.PaymentTerms
 
-func loadAgentTerms(
-	lookup func(string) (string, bool),
-) (map[string]paymentModel.PaymentTerms, error) {
-	slugs := []string{"investment", "financial", "news", "risk"}
-	agents := make(map[string]paymentModel.PaymentTerms, len(slugs))
+func loadAgentTerms() (map[string]paymentModel.PaymentTerms, error) {
+	definitions := catalog.Definitions()
+	agents := make(map[string]paymentModel.PaymentTerms, len(definitions))
 
-	for _, slug := range slugs {
-		prefix := "DEMO_" + strings.ToUpper(strings.ReplaceAll(slug, "-", "_"))
-		amount, err := required(lookup, prefix+"_PRICE_ATOMIC")
-		if err != nil {
-			return nil, err
+	for _, definition := range definitions {
+		terms := paymentModel.PaymentTerms{
+			AmountAtomic: definition.PriceAtomic,
+			Asset:        catalog.Asset,
+			PayTo:        definition.PayTo,
 		}
-		payTo, err := required(lookup, prefix+"_PAY_TO")
-		if err != nil {
-			return nil, err
-		}
-		asset, err := required(lookup, prefix+"_ASSET")
-		if err != nil {
-			return nil, err
-		}
-
-		terms := paymentModel.PaymentTerms{AmountAtomic: amount, Asset: asset, PayTo: payTo}
 		if err := validateTerms(terms); err != nil {
-			return nil, fmt.Errorf("%s x402 terms: %w", slug, err)
+			return nil, fmt.Errorf("%s x402 terms: %w", definition.Code, err)
 		}
 
-		agents[slug] = terms
+		agents[definition.Code] = terms
 	}
 
 	return agents, nil

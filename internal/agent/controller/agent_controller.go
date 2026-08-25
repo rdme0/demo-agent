@@ -26,7 +26,7 @@ func NewAgentController(agentService *service.AgentService) (*AgentController, e
 }
 
 func (controller *AgentController) RegisterRoutes(router gin.IRouter) {
-	router.POST("/agents/:agent/invoke", controller.invoke)
+	router.POST("/agents/:code/invoke", controller.invoke)
 }
 
 func (controller *AgentController) invoke(requestContext *gin.Context) {
@@ -38,12 +38,12 @@ func (controller *AgentController) invoke(requestContext *gin.Context) {
 
 	response, err := controller.service.Invoke(
 		requestContext.Request.Context(),
-		requestContext.Param("agent"),
+		requestContext.Param("code"),
 		request,
 		requestContext.GetHeader("Authorization"),
 	)
 	if err != nil {
-		log.Printf("agent invocation failed agent=%s: %v", requestContext.Param("agent"), err)
+		log.Printf("agent invocation failed agentCode=%s: %v", requestContext.Param("code"), err)
 		if errors.Is(err, service.ErrRuntimeCallback) {
 			requestContext.JSON(http.StatusBadGateway, gin.H{"error": "runtime callback failed"})
 			return
