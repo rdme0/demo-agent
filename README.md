@@ -26,10 +26,14 @@ risk의 atomic price/payTo/asset이 필요합니다. 등록한 slug에 해당하
 fixture/simulated 조합은 하나의 Go 서버에서 네 Agent를 모두 제공합니다.
 
 ```powershell
-docker compose up --build
+Set-Location ../agent-store-infra
+Copy-Item ../agent-store-be/.env.example ../agent-store-be/.env
+Copy-Item ../demo-agent/.env.example ../demo-agent/.env
+docker compose --env-file ../agent-store-be/.env up --build -d
 ```
 
-`investment`, `financial`, `news`, `risk`가 `127.0.0.1:8090`의 같은 서버에서 제공됩니다.
+개발 Compose에서는 demo-agent가 Spring API 컨테이너의 네트워크 네임스페이스를 공유합니다. 따라서
+`investment`, `financial`, `news`, `risk`는 호스트의 `127.0.0.1:8090`과 API 컨테이너의 같은 주소에서 제공됩니다.
 
 서버를 실행한 뒤 다음 요청으로 실제 OpenAI agent를 호출할 수 있습니다.
 
@@ -71,5 +75,6 @@ gofmt -w cmd internal
 go test ./...
 go vet ./...
 go build ./...
-docker compose config
+Set-Location ../agent-store-infra
+docker compose --env-file ../agent-store-be/.env config
 ```
