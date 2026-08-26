@@ -47,9 +47,13 @@ func (agent OpenAIAgent) Code() string {
 }
 
 func (agent OpenAIAgent) Invoke(ctx context.Context, invocation model.Invocation) (model.Result, error) {
+	dependencyResults, err := agent.resolveDependencies(ctx, invocation)
+	if err != nil {
+		return model.Result{}, err
+	}
 	input, err := json.Marshal(map[string]any{
 		"input":             invocation.Input,
-		"dependencyResults": invocation.DependencyResults,
+		"dependencyResults": dependencyResults,
 	})
 	if err != nil {
 		return model.Result{}, fmt.Errorf("encode %s agent input: %w", agent.Code(), err)
@@ -70,10 +74,28 @@ func (agent OpenAIAgent) Invoke(ctx context.Context, invocation model.Invocation
 		return model.Result{}, fmt.Errorf("invoke %s agent: %w", agent.Code(), err)
 	}
 	if agent.definition.AggregateMarkdown {
-		return agent.aggregateMarkdownResult(response.Output, invocation.DependencyResults)
+		result, err := agent.aggregateMarkdownResult(response.Output, dependencyResults)
+		if err != nil {
+			return model.Result{}, err
+		}
+		result.DependencyResults = dependencyResults
+		return result, nil
 	}
 
-	return structuredResult(agent.Code(), response)
+	result, err := structuredResult(agent.Code(), response)
+	if err != nil {
+		return model.Result{}, err
+	}
+	result.DependencyResults = dependencyResults
+	return result, nil
+}
+
+func (agent OpenAIAgent) resolveDependencies(ctx context.Context, invocation model.Invocation) (map[string]any, error) {
+	if !agent.definition.AggregateMarkdown || invocation.ResolveDependencies == nil {
+		return invocation.DependencyResults, nil
+	}
+
+	return invocation.ResolveDependencies(ctx)
 }
 
 func (agent OpenAIAgent) aggregateMarkdownResult(output string, dependencyResults map[string]any) (model.Result, error) {

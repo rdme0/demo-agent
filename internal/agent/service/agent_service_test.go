@@ -19,7 +19,7 @@ func TestNewAgentRegistryRejectsDuplicateCodes(t *testing.T) {
 	}
 }
 
-func TestAgentServiceResolvesRuntimeDependenciesBeforeInvocation(t *testing.T) {
+func TestRootAgentResolvesRuntimeDependenciesWhenItNeedsThem(t *testing.T) {
 	registry, err := NewAgentRegistry(dependencyAwareAgent{})
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
@@ -71,6 +71,11 @@ func (dependencyAwareAgent) Code() string {
 	return "dependency-aware"
 }
 
-func (dependencyAwareAgent) Invoke(_ context.Context, invocation model.Invocation) (model.Result, error) {
-	return model.Result{Output: invocation.DependencyResults["financial"]}, nil
+func (dependencyAwareAgent) Invoke(ctx context.Context, invocation model.Invocation) (model.Result, error) {
+	dependencyResults, err := invocation.ResolveDependencies(ctx)
+	if err != nil {
+		return model.Result{}, err
+	}
+
+	return model.Result{Output: dependencyResults["financial"], DependencyResults: dependencyResults}, nil
 }

@@ -38,18 +38,11 @@ func (service *AgentService) Invoke(
 	request dto.InvocationRequest,
 	authorization string,
 ) (dto.InvocationResponse, error) {
-	dependencyResults := map[string]any{}
-	if request.Runtime != nil {
-		resolved, err := service.callbackClient.Invoke(ctx, *request.Runtime, authorization)
-		if err != nil {
-			return dto.InvocationResponse{}, fmt.Errorf("%w: %v", ErrRuntimeCallback, err)
-		}
-		dependencyResults = resolved
-	}
-
+	resolveDependencies := service.dependencyResolver(request.Runtime, authorization)
 	result, err := service.registry.Invoke(ctx, code, model.Invocation{
-		Input:             request.Input,
-		DependencyResults: dependencyResults,
+		Input:               request.Input,
+		DependencyResults:   map[string]any{},
+		ResolveDependencies: resolveDependencies,
 	})
 	if err != nil {
 		return dto.InvocationResponse{}, err
@@ -59,6 +52,21 @@ func (service *AgentService) Invoke(
 		Transport:         dto.DemoTransport,
 		Agent:             code,
 		Output:            result.Output,
-		DependencyResults: dependencyResults,
+		DependencyResults: result.DependencyResults,
 	}, nil
+}
+
+func (service *AgentService) dependencyResolver(runtime *runtimeDTO.Request, authorization string) func(context.Context) (map[string]any, error) {
+	if runtime == nil {
+		return nil
+	}
+
+	return func(ctx context.Context) (map[string]any, error) {
+		resolved, err := service.callbackClient.Invoke(ctx, *runtime, authorization)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrRuntimeCallback, err)
+		}
+
+		return resolved, nil
+	}
 }
