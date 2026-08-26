@@ -36,14 +36,6 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
-	mode, err := required(lookup, "DEMO_PAYMENT_MODE")
-	if err != nil {
-		return Config{}, err
-	}
-	if mode != PaymentModeSimulated && mode != PaymentModeX402 {
-		return Config{}, fmt.Errorf("DEMO_PAYMENT_MODE must be simulated or x402")
-	}
-
 	agentMode, err := required(lookup, "DEMO_AGENT_MODE")
 	if err != nil {
 		return Config{}, err
@@ -56,7 +48,6 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		Host:      host,
 		Port:      port,
 		AgentMode: agentMode,
-		Payment:   PaymentConfig{Mode: mode},
 	}
 	if agentMode == AgentModeOpenAI {
 		apiKey, err := required(lookup, "OPEN_AI_KEY")
@@ -67,10 +58,6 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 			APIKey: apiKey,
 			Model:  OpenAIModel,
 		}
-	}
-
-	if mode == PaymentModeSimulated {
-		return configuration, nil
 	}
 
 	facilitatorURL, err := required(lookup, "X402_FACILITATOR_URL")

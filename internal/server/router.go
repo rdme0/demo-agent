@@ -13,13 +13,14 @@ func NewRouter(controller *agentController.AgentController, paymentMiddleware gi
 	if controller == nil {
 		return nil, fmt.Errorf("agent controller is required")
 	}
+	if paymentMiddleware == nil {
+		return nil, fmt.Errorf("payment middleware is required")
+	}
 
 	application := gin.New()
 	application.Use(gin.Recovery())
 	application.Use(limitRequestBody())
-	if paymentMiddleware != nil {
-		application.Use(paymentMiddleware)
-	}
+	application.Use(paymentMiddleware)
 
 	application.GET("/health", func(requestContext *gin.Context) {
 		requestContext.JSON(http.StatusOK, gin.H{"status": "ok"})

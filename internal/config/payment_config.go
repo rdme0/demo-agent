@@ -11,10 +11,8 @@ import (
 )
 
 const (
-	PaymentModeSimulated = "simulated"
-	PaymentModeX402      = "x402"
-	BaseSepoliaNetwork   = paymentModel.BaseSepoliaNetwork
-	BaseSepoliaUSDC      = paymentModel.BaseSepoliaUSDC
+	BaseSepoliaNetwork = paymentModel.BaseSepoliaNetwork
+	BaseSepoliaUSDC    = paymentModel.BaseSepoliaUSDC
 )
 
 var (
@@ -23,7 +21,6 @@ var (
 )
 
 type PaymentConfig struct {
-	Mode           string
 	FacilitatorURL string
 	Agents         map[string]paymentModel.PaymentTerms
 }

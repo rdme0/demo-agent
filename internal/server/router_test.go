@@ -6,61 +6,52 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"demo-agent/internal/agent/dto"
 	"demo-agent/internal/app"
+	"demo-agent/internal/catalog"
 	"demo-agent/internal/config"
 
 	"github.com/gin-gonic/gin"
 	x402 "github.com/x402-foundation/x402/go/v2"
 )
 
-func TestServerReturnsFixtureAndUnknownAgentResponses(t *testing.T) {
-	application := newSimulatedServer(t)
+func TestServerRequiresX402ForRegisteredFixtureAgents(t *testing.T) {
+	application := newX402Server(t)
 
-	for _, testCase := range []struct {
-		code      string
-		outputKey string
-		want      any
-	}{
-		{code: "investment-analysis", outputKey: "", want: "# 투자 분석"},
-		{code: "financial-analysis", outputKey: "summary", want: "재무 건전성은 보통 수준입니다."},
-		{code: "market-news-fast", outputKey: "sentiment", want: "neutral"},
-		{code: "travel-safety", outputKey: "riskLevel", want: "low"},
-		{code: "missing", outputKey: "status", want: "unknown-agent"},
-	} {
-		request := httptest.NewRequest(http.MethodPost, "/agents/"+testCase.code+"/invoke", nil)
+	for _, code := range []string{"investment-analysis", "financial-analysis", "market-news-fast", "travel-safety"} {
+		request := httptest.NewRequest(http.MethodPost, "/agents/"+code+"/invoke", nil)
 		response := httptest.NewRecorder()
 		application.ServeHTTP(response, request)
 
-		if response.Code != http.StatusOK {
-			t.Fatalf("%s returned %d", testCase.code, response.Code)
-		}
-		var payload map[string]any
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("decode %s response: %v", testCase.code, err)
-		}
-		if payload["transport"] != dto.DemoTransport {
-			t.Fatalf("%s transport mismatch: %#v", testCase.code, payload)
-		}
-		output := payload["output"]
-		if testCase.outputKey == "" {
-			if value, ok := output.(string); !ok || !strings.Contains(value, testCase.want.(string)) {
-				t.Fatalf("%s output mismatch: %#v", testCase.code, output)
-			}
-			continue
-		}
-		values, ok := output.(map[string]any)
-		if !ok || values[testCase.outputKey] != testCase.want {
-			t.Fatalf("%s output mismatch: %#v", testCase.code, output)
+		if response.Code != http.StatusPaymentRequired {
+			t.Fatalf("expected %s 402, got %d: %s", code, response.Code, response.Body.String())
 		}
 	}
 }
 
+func TestServerReturnsUnknownAgentResponse(t *testing.T) {
+	application := newX402Server(t)
+	request := httptest.NewRequest(http.MethodPost, "/agents/missing/invoke", nil)
+	response := httptest.NewRecorder()
+
+	application.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected unknown agent response, got %d", response.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode unknown agent response: %v", err)
+	}
+	if payload["transport"] != dto.DemoTransport || payload["output"].(map[string]any)["status"] != "unknown-agent" {
+		t.Fatalf("unexpected unknown agent payload: %#v", payload)
+	}
+}
+
 func TestServerReturnsHealthResponse(t *testing.T) {
-	application := newSimulatedServer(t)
+	application := newX402Server(t)
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	response := httptest.NewRecorder()
 
@@ -72,19 +63,7 @@ func TestServerReturnsHealthResponse(t *testing.T) {
 }
 
 func TestServerProtectsConfiguredRoutesWithX402(t *testing.T) {
-	application, err := app.New(config.Config{
-		AgentMode: config.AgentModeFixture,
-		Payment: config.PaymentConfig{
-			Mode: config.PaymentModeX402,
-			Agents: map[string]config.PaymentTerms{
-				"investment-analysis": {AmountAtomic: "1000", PayTo: "0x0000000000000000000000000000000000000101"},
-				"financial-analysis":  {AmountAtomic: "1000", PayTo: "0x0000000000000000000000000000000000000102"},
-			},
-		},
-	}, facilitatorStub{})
-	if err != nil {
-		t.Fatalf("new x402 server: %v", err)
-	}
+	application := newX402Server(t)
 
 	tests := []struct {
 		code   string
@@ -122,15 +101,27 @@ func TestServerProtectsConfiguredRoutesWithX402(t *testing.T) {
 	}
 }
 
-func newSimulatedServer(t *testing.T) *gin.Engine {
+func newX402Server(t *testing.T) *gin.Engine {
 	t.Helper()
+
+	terms := make(map[string]config.PaymentTerms, len(catalog.Definitions()))
+	for _, definition := range catalog.Definitions() {
+		terms[definition.Code] = config.PaymentTerms{
+			AmountAtomic: definition.PriceAtomic,
+			Asset:        catalog.Asset,
+			PayTo:        definition.PayTo,
+		}
+	}
 
 	application, err := app.New(config.Config{
 		AgentMode: config.AgentModeFixture,
-		Payment:   config.PaymentConfig{Mode: config.PaymentModeSimulated},
-	}, nil)
+		Payment: config.PaymentConfig{
+			FacilitatorURL: "https://facilitator.test",
+			Agents:         terms,
+		},
+	}, facilitatorStub{})
 	if err != nil {
-		t.Fatalf("new simulated server: %v", err)
+		t.Fatalf("new x402 server: %v", err)
 	}
 
 	return application

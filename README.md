@@ -28,8 +28,8 @@ Root는 세 전문 Agent를 callback으로 호출해 Markdown을 종합합니다
 `DEMO_AGENT_MODE=openai`는 `OPEN_AI_KEY`로 전문 Agent가 OpenAI Responses API의 `gpt-5.6-luna` 모델과 웹 검색을 사용하고,
 Root가 검증된 dependency 출처를 붙여 Markdown을 완성합니다. 검색·모델 호출에는 OpenAI API 비용이 발생합니다.
 
-`DEMO_PAYMENT_MODE=simulated`는 결제 없이 호출합니다. `x402` mode는 `X402_FACILITATOR_URL`만 추가로 필요합니다.
-Agent별 price, 고유 `payTo`, Base Sepolia USDC asset은 catalog에 고정되어 있어 `.env`에서 바꾸지 않습니다.
+모든 Agent 호출은 `X402_FACILITATOR_URL`을 사용한 x402 v2 `exact`/EIP-3009 결제를 거칩니다. Agent별 price, 고유 `payTo`,
+Base Sepolia USDC asset은 catalog에 고정되어 있어 `.env`에서 바꾸지 않습니다.
 
 ```powershell
 Set-Location ../agent-store-infra
