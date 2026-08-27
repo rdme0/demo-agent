@@ -4,6 +4,7 @@
 
 ## 역할과 실행
 
+- 경로: `C:\work\project\demo-agent`
 - Go/Gin 기반 독립 x402 resource server다. Spring DB를 직접 읽거나 쓰지 않는다.
 - `catalog/agents.yaml`이 demo Agent, Function Contract, 가격, 결제 지갑, dependency와 runtime fixture의
   단일 원본이다.
@@ -38,4 +39,6 @@ go vet ./...
 go build ./...
 ```
 
-변경 후 `git diff --check`와 Spring/FE 계약 parity를 확인한다. secret, `.env`, `.idea`는 커밋하지 않는다.
+2026-08-27 검증에서 로컬 Go 대신 `golang:1.26` 컨테이너로 `go test ./...`, `go vet ./...`,
+`go build ./...`를 통과했다. `DEMO_AGENT_MODE=fixture` Compose health와 catalog bootstrap 최초·재실행도
+통과했다. 변경 후 `git diff --check`와 Spring/FE 계약 parity를 확인한다. secret, `.env`, `.idea`는 커밋하지 않는다.
