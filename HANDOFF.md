@@ -4,7 +4,7 @@
 
 ## 역할과 실행
 
-- 경로: `C:\work\project\demo-agent`
+- 경로: 이 저장소 루트
 - Go/Gin 기반 독립 x402 resource server다. Spring DB를 직접 읽거나 쓰지 않는다.
 - `catalog/agents.yaml`이 demo Agent, Function Contract, 가격, 결제 지갑, dependency와 runtime fixture의
   단일 원본이다.
