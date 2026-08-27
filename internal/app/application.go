@@ -27,7 +27,10 @@ func New(configuration config.Config, facilitator x402SDK.FacilitatorClient) (*g
 		return nil, fmt.Errorf("create agent registry: %w", err)
 	}
 
-	callbackClient := runtimeClient.NewCallbackClient()
+	callbackClient, err := runtimeClient.NewCallbackClient(configuration.Callback.AllowedOrigins)
+	if err != nil {
+		return nil, fmt.Errorf("create runtime callback client: %w", err)
+	}
 	agentApplicationService, err := agentService.NewAgentService(registry, callbackClient)
 	if err != nil {
 		return nil, fmt.Errorf("create agent service: %w", err)

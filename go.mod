@@ -7,6 +7,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/openai/openai-go v1.12.0
 	github.com/x402-foundation/x402/go/v2 v2.22.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

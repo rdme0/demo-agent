@@ -1,0 +1,14 @@
+server:
+  host: 127.0.0.1
+  port: 8090
+agent:
+  mode: fixture
+openai:
+  model: gpt-5.6-luna
+payment:
+  facilitatorUrl: https://x402.org/facilitator
+callback:
+  allowedOrigins:
+    - http://127.0.0.1:8080
+    - http://localhost:8080
+    - http://api:8080

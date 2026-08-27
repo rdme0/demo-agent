@@ -8,9 +8,9 @@ import (
 	"strings"
 	"unicode"
 
+	"demo-agent/catalog"
 	agentClient "demo-agent/internal/agent/client"
 	"demo-agent/internal/agent/model"
-	"demo-agent/internal/catalog"
 )
 
 const (
@@ -135,11 +135,7 @@ func sourcesFromDependencies(dependencyResults map[string]any) []agentClient.Sou
 	sources := make([]agentClient.Source, 0)
 	seenURLs := map[string]struct{}{}
 	for _, dependencyResult := range dependencyResults {
-		dependency, ok := dependencyResult.(map[string]any)
-		if !ok {
-			continue
-		}
-		output, ok := dependency["output"].(map[string]any)
+		output, ok := dependencyResult.(map[string]any)
 		if !ok {
 			continue
 		}

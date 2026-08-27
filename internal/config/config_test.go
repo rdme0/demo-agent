@@ -1,104 +1,63 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
-func TestLoadRequiresExplicitListenerConfiguration(t *testing.T) {
-	_, err := Load(func(string) (string, bool) {
-		return "", false
-	})
-	if err == nil {
-		t.Fatal("expected missing listener configuration to fail")
-	}
-}
-
-func TestLoadRequiresX402Configuration(t *testing.T) {
-	configuration, err := Load(environment(x402Environment()))
+func TestLoadReadsCheckedInConfigurationAndAppliesFlags(t *testing.T) {
+	configuration, err := Load(configFile(t, baseConfig()), Overrides{Host: "0.0.0.0", Port: 9090, AgentMode: AgentModeFixture}, environment(nil))
 	if err != nil {
-		t.Fatalf("load x402 configuration: %v", err)
+		t.Fatalf("load config: %v", err)
 	}
-	if configuration.ListenAddress() != "127.0.0.1:8090" {
+	if configuration.ListenAddress() != "0.0.0.0:9090" {
 		t.Fatalf("unexpected listener address: %s", configuration.ListenAddress())
 	}
+	if len(configuration.Callback.AllowedOrigins) != 3 {
+		t.Fatalf("unexpected callback origins: %#v", configuration.Callback.AllowedOrigins)
+	}
 }
 
-func TestLoadRejectsMissingFacilitatorURL(t *testing.T) {
-	values := x402Environment()
-	delete(values, "X402_FACILITATOR_URL")
-
-	_, err := Load(environment(values))
+func TestLoadRejectsUnknownYAMLFields(t *testing.T) {
+	_, err := Load(configFile(t, baseConfig()+"unknown: value\n"), Overrides{}, environment(nil))
 	if err == nil {
-		t.Fatal("expected missing facilitator URL to fail")
+		t.Fatal("expected unknown YAML field to fail")
 	}
 }
 
-func TestLoadRejectsInvalidPort(t *testing.T) {
-	for _, port := range []string{"0", "not-a-port"} {
-		values := x402Environment()
-		values["DEMO_AGENT_PORT"] = port
-
-		_, err := Load(environment(values))
-		if err == nil {
-			t.Fatalf("expected invalid port to fail: %s", port)
-		}
-	}
-}
-
-func TestLoadAcceptsOpenAIModeWithExplicitKey(t *testing.T) {
-	values := x402Environment()
-	values["DEMO_AGENT_MODE"] = AgentModeOpenAI
-	values["OPEN_AI_KEY"] = "test-key"
-
-	configuration, err := Load(environment(values))
-	if err != nil {
-		t.Fatalf("load OpenAI configuration: %v", err)
-	}
-	if configuration.OpenAI.Model != OpenAIModel {
-		t.Fatalf("unexpected OpenAI model: %s", configuration.OpenAI.Model)
-	}
-}
-
-func TestLoadRejectsOpenAIModeWithoutKey(t *testing.T) {
-	values := x402Environment()
-	values["DEMO_AGENT_MODE"] = AgentModeOpenAI
-
-	_, err := Load(environment(values))
+func TestLoadRequiresOpenAIKeyOnlyForOpenAIMode(t *testing.T) {
+	_, err := Load(configFile(t, baseConfig()), Overrides{AgentMode: AgentModeOpenAI}, environment(nil))
 	if err == nil {
 		t.Fatal("expected missing OpenAI key to fail")
 	}
-}
-
-func TestLoadRejectsInvalidX402Terms(t *testing.T) {
-	agents, err := loadAgentTerms()
-	if err != nil {
-		t.Fatalf("load catalog terms: %v", err)
-	}
-	if len(agents) != 13 {
-		t.Fatalf("expected 13 catalog terms, got %d", len(agents))
+	configuration, err := Load(configFile(t, baseConfig()), Overrides{AgentMode: AgentModeOpenAI}, environment(map[string]string{"OPEN_AI_KEY": "test-key"}))
+	if err != nil || configuration.OpenAI.Model != OpenAIModel {
+		t.Fatalf("load OpenAI config: %v %#v", err, configuration.OpenAI)
 	}
 }
 
-func TestLoadRejectsInvalidFacilitatorURL(t *testing.T) {
-	values := x402Environment()
-	values["X402_FACILITATOR_URL"] = "file:///facilitator"
-
-	_, err := Load(environment(values))
+func TestLoadRejectsInvalidCallbackOrigin(t *testing.T) {
+	content := baseConfig() + "callback:\n  allowedOrigins: [http://api:8080/path]\n"
+	_, err := Load(configFile(t, content), Overrides{}, environment(nil))
 	if err == nil {
-		t.Fatal("expected invalid facilitator URL to fail")
+		t.Fatal("expected callback path to fail")
 	}
 }
 
-func x402Environment() map[string]string {
-	return map[string]string{
-		"DEMO_AGENT_HOST":      "127.0.0.1",
-		"DEMO_AGENT_PORT":      "8090",
-		"DEMO_AGENT_MODE":      AgentModeFixture,
-		"X402_FACILITATOR_URL": "https://facilitator.test",
+func baseConfig() string {
+	return "server:\n  host: 127.0.0.1\n  port: 8090\nagent:\n  mode: fixture\nopenai:\n  model: " + OpenAIModel + "\npayment:\n  facilitatorUrl: https://facilitator.test\ncallback:\n  allowedOrigins:\n    - http://127.0.0.1:8080\n    - http://localhost:8080\n    - http://api:8080\n"
+}
+
+func configFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "application.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
 	}
+	return path
 }
 
 func environment(values map[string]string) func(string) (string, bool) {
-	return func(key string) (string, bool) {
-		value, exists := values[key]
-		return value, exists
-	}
+	return func(key string) (string, bool) { value, exists := values[key]; return value, exists }
 }

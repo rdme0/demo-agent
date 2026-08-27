@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"demo-agent/catalog"
 	"demo-agent/internal/agent/dto"
 	"demo-agent/internal/app"
-	"demo-agent/internal/catalog"
 	"demo-agent/internal/config"
 
 	"github.com/gin-gonic/gin"
@@ -119,6 +119,7 @@ func newX402Server(t *testing.T) *gin.Engine {
 			FacilitatorURL: "https://facilitator.test",
 			Agents:         terms,
 		},
+		Callback: config.CallbackConfig{AllowedOrigins: []string{"http://127.0.0.1:8080"}},
 	}, facilitatorStub{})
 	if err != nil {
 		t.Fatalf("new x402 server: %v", err)

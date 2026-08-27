@@ -174,10 +174,7 @@ func TestOpenAIAgentRejectsInvalidJSONOutput(t *testing.T) {
 
 func dependencyResult(sources []agentClient.Source) map[string]any {
 	return map[string]any{
-		"agent": "dependency",
-		"output": map[string]any{
-			"sources": sources,
-		},
+		"sources": sources,
 	}
 }
 

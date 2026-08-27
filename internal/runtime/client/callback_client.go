@@ -24,15 +24,27 @@ const (
 )
 
 type CallbackClient struct {
-	newHTTPClient func(string, string) *http.Client
+	newHTTPClient  func(string, string) *http.Client
+	allowedOrigins map[string]struct{}
 }
 
-func NewCallbackClient() *CallbackClient {
-	return &CallbackClient{newHTTPClient: newPinnedHTTPClient}
+func NewCallbackClient(origins []string) (*CallbackClient, error) {
+	allowedOrigins := make(map[string]struct{}, len(origins))
+	for _, origin := range origins {
+		parsed, err := parseExactOrigin(origin)
+		if err != nil {
+			return nil, err
+		}
+		allowedOrigins[parsed.String()] = struct{}{}
+	}
+	if len(allowedOrigins) == 0 {
+		return nil, fmt.Errorf("runtime callback allowed origins are required")
+	}
+	return &CallbackClient{newHTTPClient: newPinnedHTTPClient, allowedOrigins: allowedOrigins}, nil
 }
 
 func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Request, authorization string) (map[string]any, error) {
-	parsedURL, err := validateCallbackURL(callback.CallbackURL)
+	parsedURL, err := client.validateCallbackURL(callback.CallbackURL)
 	if err != nil {
 		return nil, err
 	}
@@ -137,25 +149,35 @@ func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL 
 	return decoded.Result.Output, nil
 }
 
-func validateCallbackURL(rawURL string) (*url.URL, error) {
+func (client *CallbackClient) validateCallbackURL(rawURL string) (*url.URL, error) {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("runtime callback URL is invalid")
 	}
-
-	host := strings.ToLower(parsedURL.Hostname())
-	if parsedURL.Scheme != "http" || (host != "127.0.0.1" && host != "localhost") || parsedURL.User != nil || parsedURL.Fragment != "" {
-		return nil, fmt.Errorf("runtime callback URL must be an HTTP loopback URL")
+	if parsedURL.User != nil || parsedURL.Fragment != "" || parsedURL.RawQuery != "" || parsedURL.Host == "" {
+		return nil, fmt.Errorf("runtime callback URL is invalid")
 	}
-
+	origin, err := parseExactOrigin(parsedURL.Scheme + "://" + parsedURL.Host)
+	if err != nil {
+		return nil, err
+	}
+	if _, allowed := client.allowedOrigins[origin.String()]; !allowed {
+		return nil, fmt.Errorf("runtime callback URL origin is not allowed")
+	}
 	return parsedURL, nil
 }
 
-func newPinnedHTTPClient(host string, port string) *http.Client {
-	pinnedAddress := "127.0.0.1"
-	if strings.ToLower(host) == "127.0.0.1" {
-		pinnedAddress = host
+func parseExactOrigin(rawOrigin string) (*url.URL, error) {
+	parsed, err := url.Parse(rawOrigin)
+	if err != nil || parsed.Scheme != "http" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("runtime callback origin must be an exact HTTP origin")
 	}
+	parsed.Host = strings.ToLower(parsed.Host)
+	return parsed, nil
+}
+
+func newPinnedHTTPClient(host string, port string) *http.Client {
+	pinnedAddress, resolveErr := resolvePinnedAddress(host)
 	if port == "" {
 		port = "80"
 	}
@@ -163,6 +185,10 @@ func newPinnedHTTPClient(host string, port string) *http.Client {
 	dialer := &net.Dialer{}
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network string, _ string) (net.Conn, error) {
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+
 			return dialer.DialContext(ctx, network, net.JoinHostPort(pinnedAddress, port))
 		},
 	}
@@ -173,6 +199,30 @@ func newPinnedHTTPClient(host string, port string) *http.Client {
 			return errors.New("runtime callback redirects are not allowed")
 		},
 	}
+}
+
+func resolvePinnedAddress(host string) (string, error) {
+	normalizedHost := strings.ToLower(host)
+	if normalizedHost == "localhost" || normalizedHost == "127.0.0.1" {
+		return "127.0.0.1", nil
+	}
+
+	addresses, err := net.LookupIP(host)
+	if err != nil {
+		return "", fmt.Errorf("resolve runtime callback host: %w", err)
+	}
+	for _, address := range addresses {
+		if address.To4() != nil {
+			return address.String(), nil
+		}
+	}
+	for _, address := range addresses {
+		if address.To16() != nil {
+			return address.String(), nil
+		}
+	}
+
+	return "", fmt.Errorf("runtime callback host has no IP address")
 }
 
 func newUUID() string {

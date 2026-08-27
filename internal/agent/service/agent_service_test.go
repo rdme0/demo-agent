@@ -47,10 +47,35 @@ func TestRootAgentResolvesRuntimeDependenciesWhenItNeedsThem(t *testing.T) {
 	}
 }
 
+func TestGenericServiceDoesNotResolveDependenciesForSpecialists(t *testing.T) {
+	registry, err := NewAgentRegistry(staticAgent{code: "specialist"})
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	callback := &countingCallback{}
+	service, err := NewAgentService(registry, callback)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	if _, err := service.Invoke(context.Background(), "specialist", dto.InvocationRequest{Runtime: &runtimeDTO.Request{CallbackURL: "http://127.0.0.1:8080/runtime"}}, "Bearer token"); err != nil {
+		t.Fatalf("invoke specialist: %v", err)
+	}
+	if callback.calls != 0 {
+		t.Fatalf("generic service resolved specialist dependencies %d times", callback.calls)
+	}
+}
+
 type callbackStub struct{}
 
 func (callbackStub) Invoke(context.Context, runtimeDTO.Request, string) (map[string]any, error) {
 	return map[string]any{"financial": "resolved"}, nil
+}
+
+type countingCallback struct{ calls int }
+
+func (callback *countingCallback) Invoke(context.Context, runtimeDTO.Request, string) (map[string]any, error) {
+	callback.calls++
+	return nil, nil
 }
 
 type dependencyAwareAgent struct{}

@@ -1,0 +1,95 @@
+apiVersion: agentstore/v1
+contractVersion: 1.0.0
+agentVersion: 1.0.0
+network: eip155:84532
+asset: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+developer:
+  id: 00000000-0000-0000-0000-00000000d001
+  name: AgentStore Demo
+functionContracts:
+  - code: investment-analysis
+    name: 투자 분석
+    description: 여러 분석 결과를 종합하는 투자 분석 기능입니다.
+    responseFormat: MARKDOWN
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: string}
+  - code: financial-analysis
+    name: 재무 분석
+    description: 재무 지표와 위험을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [keyMetrics, risks, sources, summary], properties: {summary: {type: string}, keyMetrics: {type: array, items: {type: string}}, risks: {type: array, items: {type: string}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: market-news-analysis
+    name: 시장 뉴스 분석
+    description: 시장 뉴스 흐름과 핵심 근거를 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [highlights, sentiment, sources, summary], properties: {summary: {type: string}, sentiment: {type: string, enum: [positive, neutral, negative, mixed]}, highlights: {type: array, items: {type: string}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: investment-risk-analysis
+    name: 투자 위험 분석
+    description: 투자 위험 수준과 요인을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [factors, riskLevel, sources, summary], properties: {summary: {type: string}, riskLevel: {type: string, enum: [low, medium, high]}, factors: {type: array, items: {type: string}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: shopping-advice
+    name: 상품 구매 조언
+    description: 상품 후보와 가격·리뷰 근거를 종합하는 기능입니다.
+    responseFormat: MARKDOWN
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: string}
+  - code: product-search
+    name: 상품 탐색
+    description: 제품 후보와 핵심 특징을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [products, sources, summary], properties: {summary: {type: string}, products: {type: array, items: {type: object, additionalProperties: false, required: [keyFeatures, name], properties: {name: {type: string}, keyFeatures: {type: array, items: {type: string}}}}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: review-analysis
+    name: 리뷰 분석
+    description: 제품 리뷰의 장점과 단점을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [sources, strengths, summary, weaknesses], properties: {summary: {type: string}, strengths: {type: array, items: {type: string}}, weaknesses: {type: array, items: {type: string}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: price-comparison
+    name: 가격 비교
+    description: 판매처별 가격과 조건을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [offers, sources, summary], properties: {summary: {type: string}, offers: {type: array, items: {type: object, additionalProperties: false, required: [condition, priceText, seller], properties: {seller: {type: string}, priceText: {type: string}, condition: {type: string}}}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: travel-plan
+    name: 여행 계획
+    description: 여행 장소, 날씨, 안전 정보를 종합하는 기능입니다.
+    responseFormat: MARKDOWN
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: string}
+  - code: destination-research
+    name: 여행지 조사
+    description: 여행지의 추천 지점과 주의점을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [cautions, highlights, sources, summary], properties: {summary: {type: string}, highlights: {type: array, items: {type: string}}, cautions: {type: array, items: {type: string}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: weather-forecast
+    name: 날씨 예보
+    description: 여행 기간별 날씨 조건을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [periods, sources, summary], properties: {summary: {type: string}, periods: {type: array, items: {type: object, additionalProperties: false, required: [conditions, period], properties: {period: {type: string}, conditions: {type: string}}}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+  - code: travel-safety-analysis
+    name: 여행 안전 분석
+    description: 여행 안전 수준과 행동 요령을 구조화해 제공하는 기능입니다.
+    responseFormat: JSON
+    inputSchema: {type: object, additionalProperties: true}
+    outputSchema: {type: object, additionalProperties: false, required: [precautions, riskLevel, sources, summary], properties: {summary: {type: string}, riskLevel: {type: string, enum: [low, medium, high]}, precautions: {type: array, items: {type: string}}, sources: {type: array, items: {type: object, additionalProperties: false, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}}}}
+agents:
+  - {code: investment-analysis, name: 투자 분석, description: 재무·시장 뉴스·위험 정보를 종합해 투자 판단 근거를 정리합니다., functionCode: investment-analysis, usageType: user_facing, priceAtomic: "1000", payTo: "0x0000000000000000000000000000000000000101", runtime: {role: root, prompt: "투자 분석 결과를 한국어 Markdown으로 작성하세요.", fixture: "# 투자 분석\n\n## 요약\n투자 판단 전 여러 근거를 함께 확인하세요."}, dependencies: [{functionCode: financial-analysis, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "1000", maxCalls: 1, strategy: lowest_price}, {functionCode: market-news-analysis, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "1200", maxCalls: 1, strategy: lowest_price}, {functionCode: investment-risk-analysis, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "900", maxCalls: 1, strategy: lowest_price}]}
+  - {code: financial-analysis, name: 재무 분석, description: 기업의 재무 신호와 위험을 조사합니다., functionCode: financial-analysis, usageType: internal_component, priceAtomic: "1000", payTo: "0x0000000000000000000000000000000000000102", runtime: {role: specialist, prompt: "재무 분석 에이전트입니다. 최신 재무 근거를 웹 검색으로 확인하세요.", requiresWebSearch: true, fixture: {summary: 재무 건전성은 보통 수준입니다., keyMetrics: [매출 흐름 확인, 부채 비율 점검], risks: [실적 변동 가능성], sources: [{title: financial-analysis demo source 1, url: https://example.com/financial-analysis/1}, {title: financial-analysis demo source 2, url: https://example.com/financial-analysis/2}, {title: financial-analysis demo source 3, url: https://example.com/financial-analysis/3}]}}}
+  - {code: market-news-fast, name: 빠른 시장 뉴스, description: 짧은 최신 시장 뉴스 분석을 제공합니다., functionCode: market-news-analysis, usageType: internal_component, priceAtomic: "600", payTo: "0x0000000000000000000000000000000000000103", runtime: {role: specialist, prompt: "시장 뉴스 분석 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 최근 뉴스 흐름은 중립적입니다., sentiment: neutral, highlights: [시장 변동성 확대, 실적 발표 대기], sources: [{title: market-news-fast demo source 1, url: https://example.com/market-news-fast/1}, {title: market-news-fast demo source 2, url: https://example.com/market-news-fast/2}, {title: market-news-fast demo source 3, url: https://example.com/market-news-fast/3}]}}}
+  - {code: market-news-deep, name: 심층 시장 뉴스, description: 상세한 최신 시장 뉴스 분석을 제공합니다., functionCode: market-news-analysis, usageType: internal_component, priceAtomic: "1200", payTo: "0x0000000000000000000000000000000000000104", runtime: {role: specialist, prompt: "심층 시장 뉴스 분석 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 최근 뉴스 흐름은 중립적이며 변동성이 있습니다., sentiment: neutral, highlights: [시장 변동성 확대, 실적 발표 대기, 정책 변수 확인], sources: [{title: market-news-deep demo source 1, url: https://example.com/market-news-deep/1}, {title: market-news-deep demo source 2, url: https://example.com/market-news-deep/2}, {title: market-news-deep demo source 3, url: https://example.com/market-news-deep/3}]}}}
+  - {code: investment-risk, name: 투자 위험 분석, description: 투자 판단의 주요 위험 요소를 조사합니다., functionCode: investment-risk-analysis, usageType: internal_component, priceAtomic: "900", payTo: "0x0000000000000000000000000000000000000105", runtime: {role: specialist, prompt: "투자 위험 분석 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 변동성 위험을 주의해야 합니다., riskLevel: medium, factors: [시장 변동성, 정보 지연], sources: [{title: investment-risk demo source 1, url: https://example.com/investment-risk/1}, {title: investment-risk demo source 2, url: https://example.com/investment-risk/2}, {title: investment-risk demo source 3, url: https://example.com/investment-risk/3}]}}}
+  - {code: shopping-assistant, name: 상품 구매 도우미, description: 제품·리뷰·가격 정보를 비교해 구매 판단을 돕습니다., functionCode: shopping-advice, usageType: user_facing, priceAtomic: "1000", payTo: "0x0000000000000000000000000000000000000106", runtime: {role: root, prompt: "상품 구매 도우미입니다.", fixture: "# 상품 구매 비교\n\n## 추천 요약\n용도와 예산에 맞는 후보를 비교하세요."}, dependencies: [{functionCode: product-search, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "800", maxCalls: 1, strategy: lowest_price}, {functionCode: review-analysis, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "900", maxCalls: 1, strategy: lowest_price}, {functionCode: price-comparison, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "700", maxCalls: 1, strategy: lowest_price}]}
+  - {code: product-search, name: 상품 탐색, description: 요청에 맞는 제품 후보와 특징을 찾습니다., functionCode: product-search, usageType: internal_component, priceAtomic: "800", payTo: "0x0000000000000000000000000000000000000107", runtime: {role: specialist, prompt: "상품 탐색 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 세 가지 제품 후보를 찾았습니다., products: [{name: Demo One, keyFeatures: [휴대성, 긴 배터리]}, {name: Demo Two, keyFeatures: [성능, 보증]}], sources: [{title: product-search demo source 1, url: https://example.com/product-search/1}, {title: product-search demo source 2, url: https://example.com/product-search/2}, {title: product-search demo source 3, url: https://example.com/product-search/3}]}}}
+  - {code: review-analysis, name: 리뷰 분석, description: 사용자 후기에서 장점과 단점을 정리합니다., functionCode: review-analysis, usageType: internal_component, priceAtomic: "900", payTo: "0x0000000000000000000000000000000000000108", runtime: {role: specialist, prompt: "리뷰 분석 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 후기는 편의성과 가격을 함께 언급합니다., strengths: [사용 편의성, 디자인], weaknesses: [부가 기능 제한], sources: [{title: review-analysis demo source 1, url: https://example.com/review-analysis/1}, {title: review-analysis demo source 2, url: https://example.com/review-analysis/2}, {title: review-analysis demo source 3, url: https://example.com/review-analysis/3}]}}}
+  - {code: price-comparison, name: 가격 비교, description: 판매처별 가격과 구매 조건을 비교합니다., functionCode: price-comparison, usageType: internal_component, priceAtomic: "700", payTo: "0x0000000000000000000000000000000000000109", runtime: {role: specialist, prompt: "가격 비교 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 판매처별 조건이 다릅니다., offers: [{seller: Demo Store A, priceText: ₩100,000, condition: 무료 배송}, {seller: Demo Store B, priceText: ₩98,000, condition: 멤버십 필요}], sources: [{title: price-comparison demo source 1, url: https://example.com/price-comparison/1}, {title: price-comparison demo source 2, url: https://example.com/price-comparison/2}, {title: price-comparison demo source 3, url: https://example.com/price-comparison/3}]}}}
+  - {code: travel-planner, name: 여행 계획, description: 장소·날씨·안전 정보를 종합해 여행 계획을 만듭니다., functionCode: travel-plan, usageType: user_facing, priceAtomic: "1000", payTo: "0x0000000000000000000000000000000000000110", runtime: {role: root, prompt: "여행 계획 에이전트입니다.", fixture: "# 여행 계획\n\n## 일정 요약\n여행 목적과 기간을 먼저 정하세요."}, dependencies: [{functionCode: destination-research, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "800", maxCalls: 1, strategy: lowest_price}, {functionCode: weather-forecast, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "600", maxCalls: 1, strategy: lowest_price}, {functionCode: travel-safety-analysis, providerScope: marketplace, versionConstraint: ">=1.0.0,<2.0.0", required: true, maxPriceAtomic: "900", maxCalls: 1, strategy: lowest_price}]}
+  - {code: destination-research, name: 여행지 조사, description: 여행지의 볼거리와 주의점을 조사합니다., functionCode: destination-research, usageType: internal_component, priceAtomic: "800", payTo: "0x0000000000000000000000000000000000000111", runtime: {role: specialist, prompt: "여행지 조사 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 도보와 대중교통으로 둘러보기 좋습니다., highlights: [대표 명소, 지역 음식], cautions: [혼잡 시간 확인], sources: [{title: destination-research demo source 1, url: https://example.com/destination-research/1}, {title: destination-research demo source 2, url: https://example.com/destination-research/2}, {title: destination-research demo source 3, url: https://example.com/destination-research/3}]}}}
+  - {code: weather-forecast, name: 날씨 예보, description: 여행 기간의 날씨 조건을 조사합니다., functionCode: weather-forecast, usageType: internal_component, priceAtomic: "600", payTo: "0x0000000000000000000000000000000000000112", runtime: {role: specialist, prompt: "날씨 예보 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 가벼운 우산을 준비하세요., periods: [{period: 첫째 날, conditions: 맑음}, {period: 둘째 날, conditions: 약한 비 가능}], sources: [{title: weather-forecast demo source 1, url: https://example.com/weather-forecast/1}, {title: weather-forecast demo source 2, url: https://example.com/weather-forecast/2}, {title: weather-forecast demo source 3, url: https://example.com/weather-forecast/3}]}}}
+  - {code: travel-safety, name: 여행 안전, description: 여행지의 안전 정보와 주의 사항을 조사합니다., functionCode: travel-safety-analysis, usageType: internal_component, priceAtomic: "900", payTo: "0x0000000000000000000000000000000000000113", runtime: {role: specialist, prompt: "여행 안전 에이전트입니다.", requiresWebSearch: true, fixture: {summary: 일반적인 여행 안전 수칙을 지키세요., riskLevel: low, precautions: [야간 이동 전 교통편 확인, 현지 긴급 연락처 저장], sources: [{title: travel-safety demo source 1, url: https://example.com/travel-safety/1}, {title: travel-safety demo source 2, url: https://example.com/travel-safety/2}, {title: travel-safety demo source 3, url: https://example.com/travel-safety/3}]}}}

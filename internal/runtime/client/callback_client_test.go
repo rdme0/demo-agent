@@ -25,7 +25,7 @@ func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewCallbackClient()
+	client := testCallbackClient(t, server.URL)
 	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		ParentStepID: "step-1",
 		CallbackURL:  server.URL,
@@ -48,7 +48,7 @@ func TestCallbackClientInvokesIndependentDependenciesConcurrently(t *testing.T) 
 	}))
 	defer server.Close()
 
-	client := NewCallbackClient()
+	client := testCallbackClient(t, server.URL)
 	startedAt := time.Now()
 	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL: server.URL,
@@ -76,7 +76,7 @@ func TestCallbackClientPinsLocalhostToIPv4Loopback(t *testing.T) {
 	defer server.Close()
 
 	callbackURL := strings.Replace(server.URL, "127.0.0.1", "localhost", 1)
-	client := NewCallbackClient()
+	client := testCallbackClient(t, callbackURL)
 	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  callbackURL,
 		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"financial"}}},
@@ -95,7 +95,7 @@ func TestCallbackClientRejectsRedirect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewCallbackClient()
+	client := testCallbackClient(t, server.URL)
 	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  server.URL,
 		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"risk"}}},
@@ -106,7 +106,7 @@ func TestCallbackClientRejectsRedirect(t *testing.T) {
 }
 
 func TestCallbackClientRejectsOversizedRequest(t *testing.T) {
-	client := NewCallbackClient()
+	client := testCallbackClient(t, "http://127.0.0.1")
 	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL: "http://127.0.0.1/runtime",
 		Dependencies: []runtimeDTO.Dependency{{
@@ -120,7 +120,7 @@ func TestCallbackClientRejectsOversizedRequest(t *testing.T) {
 }
 
 func TestCallbackClientSetsDeadlineOnCallbackRequest(t *testing.T) {
-	client := NewCallbackClient()
+	client := testCallbackClient(t, "http://127.0.0.1")
 	client.newHTTPClient = func(string, string) *http.Client {
 		return &http.Client{Transport: roundTripper(func(request *http.Request) (*http.Response, error) {
 			deadline, exists := request.Context().Deadline()
@@ -149,7 +149,7 @@ func TestCallbackClientSetsDeadlineOnCallbackRequest(t *testing.T) {
 }
 
 func TestCallbackClientRejectsNonLoopbackURL(t *testing.T) {
-	client := NewCallbackClient()
+	client := testCallbackClient(t, "http://127.0.0.1:8080")
 	_, err := client.Invoke(context.Background(), runtimeDTO.Request{CallbackURL: "http://example.com/runtime"}, "")
 	if err == nil {
 		t.Fatal("expected non-loopback callback to fail")
@@ -157,7 +157,7 @@ func TestCallbackClientRejectsNonLoopbackURL(t *testing.T) {
 }
 
 func TestCallbackClientRejectsCredentialAndFragmentURLs(t *testing.T) {
-	client := NewCallbackClient()
+	client := testCallbackClient(t, "http://127.0.0.1")
 
 	for _, callbackURL := range []string{
 		"http://token@127.0.0.1/runtime",
@@ -171,7 +171,7 @@ func TestCallbackClientRejectsCredentialAndFragmentURLs(t *testing.T) {
 }
 
 func TestCallbackClientRejectsOversizedResponse(t *testing.T) {
-	client := NewCallbackClient()
+	client := testCallbackClient(t, "http://127.0.0.1")
 	client.newHTTPClient = func(string, string) *http.Client {
 		return &http.Client{Transport: roundTripper(func(*http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -197,7 +197,7 @@ func TestCallbackClientRejectsMissingCommonResponseResult(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewCallbackClient()
+	client := testCallbackClient(t, server.URL)
 	_, err := client.Invoke(context.Background(), runtimeDTO.Request{
 		CallbackURL:  server.URL,
 		Dependencies: []runtimeDTO.Dependency{{CallPath: []string{"risk"}}},
@@ -208,6 +208,15 @@ func TestCallbackClientRejectsMissingCommonResponseResult(t *testing.T) {
 }
 
 type roundTripper func(*http.Request) (*http.Response, error)
+
+func testCallbackClient(t *testing.T, origin string) *CallbackClient {
+	t.Helper()
+	client, err := NewCallbackClient([]string{origin})
+	if err != nil {
+		t.Fatalf("new callback client: %v", err)
+	}
+	return client
+}
 
 func (roundTrip roundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	return roundTrip(request)

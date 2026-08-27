@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"demo-agent/internal/catalog"
+	"demo-agent/catalog"
 	paymentModel "demo-agent/internal/payment/model"
 )
 
@@ -64,7 +64,7 @@ func validateTerms(terms paymentModel.PaymentTerms) error {
 func validateFacilitatorURL(value string) error {
 	parsedURL, err := url.ParseRequestURI(value)
 	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.User != nil {
-		return fmt.Errorf("X402_FACILITATOR_URL must be an HTTP(S) URL without credentials")
+		return fmt.Errorf("payment.facilitatorUrl must be an HTTP(S) URL without credentials")
 	}
 
 	return nil

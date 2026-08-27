@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"sort"
+	"strings"
 
+	"demo-agent/catalog"
 	"demo-agent/internal/agent/model"
-	"demo-agent/internal/catalog"
 )
 
 type FixtureAgent struct {
@@ -30,7 +32,10 @@ func (agent FixtureAgent) Invoke(ctx context.Context, invocation model.Invocatio
 		return model.Result{}, err
 	}
 
-	return model.Result{Output: agent.definition.Fixture, DependencyResults: dependencyResults}, nil
+	return model.Result{
+		Output:            agent.output(dependencyResults),
+		DependencyResults: dependencyResults,
+	}, nil
 }
 
 func (agent FixtureAgent) resolveDependencies(ctx context.Context, invocation model.Invocation) (map[string]any, error) {
@@ -39,4 +44,41 @@ func (agent FixtureAgent) resolveDependencies(ctx context.Context, invocation mo
 	}
 
 	return invocation.ResolveDependencies(ctx)
+}
+
+func (agent FixtureAgent) output(dependencyResults map[string]any) any {
+	if !agent.definition.AggregateMarkdown || len(dependencyResults) == 0 {
+		return agent.definition.Fixture
+	}
+
+	markdown, ok := agent.definition.Fixture.(string)
+	if !ok {
+		return agent.definition.Fixture
+	}
+
+	codes := make([]string, 0, len(dependencyResults))
+	for code := range dependencyResults {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+
+	lines := []string{strings.TrimSpace(markdown), "", "## 함께 확인한 내용"}
+	for _, code := range codes {
+		lines = append(lines, "- "+code+": "+fixtureSummary(dependencyResults[code]))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func fixtureSummary(result any) string {
+	output, ok := result.(map[string]any)
+	if !ok {
+		return "결과를 확인했어요."
+	}
+	summary, ok := output["summary"].(string)
+	if !ok || strings.TrimSpace(summary) == "" {
+		return "결과를 확인했어요."
+	}
+
+	return strings.TrimSpace(summary)
 }
