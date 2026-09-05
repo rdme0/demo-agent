@@ -23,9 +23,10 @@ Root Agent 세 개(`investment-analysis`, `shopping-assistant`, `travel-planner`
 
 ## catalog bootstrap
 
-API와 demo-agent health 뒤 catalog를 등록합니다. Bootstrap은 Function Contract를 먼저 만들고 manifest를 import하여 Version을 publish합니다. 이미 ACTIVE 데이터가 있으면 canonical Contract와 manifest digest가 같은 경우에만 성공하며, 다르면 덮어쓰지 않고 `catalog drift`로 중단합니다.
+API와 demo-agent health 뒤 catalog를 등록합니다. Bootstrap은 Function Contract를 먼저 만들고 manifest를 import하여 Version을 publish합니다. 이미 ACTIVE 데이터가 있으면 canonical Contract와 manifest digest가 같은 경우에만 성공하며, 다르면 덮어쓰지 않고 `catalog drift`로 중단합니다. 사람은 먼저 AgentStore 랜딩의 `데모 시작`을 눌러 365일 demo Bearer access token을 발급받고 `AGENT_STORE_DEMO_ACCESS_TOKEN`으로 전달합니다. bootstrap은 cookie/CSRF session을 만들지 않습니다.
 
 ```powershell
+$env:AGENT_STORE_DEMO_ACCESS_TOKEN = '<AgentStore demo access token>'
 go run ./cmd/catalog-bootstrap `
   --agent-store-base-url http://127.0.0.1:8080 `
   --demo-agent-base-url http://127.0.0.1:8090
