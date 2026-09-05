@@ -20,15 +20,20 @@ import (
 
 const (
 	maxBodyBytes = 1 << 20
-	callbackTTL  = 30 * time.Second
 )
 
 type CallbackClient struct {
-	newHTTPClient  func(string, string) *http.Client
-	allowedOrigins map[string]struct{}
+	newHTTPClient      func(string, string) *http.Client
+	allowedOrigins     map[string]struct{}
+	perDepthTimeout    time.Duration
+	maxDependencyDepth int
 }
 
-func NewCallbackClient(origins []string) (*CallbackClient, error) {
+func NewCallbackClient(
+	origins []string,
+	perDepthTimeout time.Duration,
+	maxDependencyDepth int,
+) (*CallbackClient, error) {
 	allowedOrigins := make(map[string]struct{}, len(origins))
 	for _, origin := range origins {
 		parsed, err := parseExactOrigin(origin)
@@ -40,7 +45,18 @@ func NewCallbackClient(origins []string) (*CallbackClient, error) {
 	if len(allowedOrigins) == 0 {
 		return nil, fmt.Errorf("runtime callback allowed origins are required")
 	}
-	return &CallbackClient{newHTTPClient: newPinnedHTTPClient, allowedOrigins: allowedOrigins}, nil
+	if perDepthTimeout <= 0 {
+		return nil, fmt.Errorf("runtime callback timeout must be positive")
+	}
+	if maxDependencyDepth <= 0 {
+		return nil, fmt.Errorf("runtime callback maximum dependency depth must be positive")
+	}
+	return &CallbackClient{
+		newHTTPClient:      newPinnedHTTPClient,
+		allowedOrigins:     allowedOrigins,
+		perDepthTimeout:    perDepthTimeout,
+		maxDependencyDepth: maxDependencyDepth,
+	}, nil
 }
 
 func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Request, authorization string) (map[string]any, error) {
@@ -103,7 +119,11 @@ func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL 
 		return nil, fmt.Errorf("runtime callback request exceeds 1MB")
 	}
 
-	requestContext, cancel := context.WithTimeout(ctx, callbackTTL)
+	requestTimeout, err := client.callbackTimeout(dependency.CallPath)
+	if err != nil {
+		return nil, err
+	}
+	requestContext, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
 	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, callbackURL.String(), bytes.NewReader(body))
@@ -145,6 +165,15 @@ func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL 
 	}
 
 	return decoded.Result.Output, nil
+}
+
+func (client *CallbackClient) callbackTimeout(callPath []string) (time.Duration, error) {
+	if len(callPath) == 0 || len(callPath) > client.maxDependencyDepth {
+		return 0, fmt.Errorf("runtime callback call path depth is invalid")
+	}
+
+	remainingDepth := client.maxDependencyDepth - len(callPath) + 1
+	return client.perDepthTimeout * time.Duration(remainingDepth), nil
 }
 
 func (client *CallbackClient) validateCallbackURL(rawURL string) (*url.URL, error) {

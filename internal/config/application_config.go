@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,7 +43,9 @@ type fileConfig struct {
 		Model string `yaml:"model"`
 	} `yaml:"openai"`
 	Payment struct {
-		FacilitatorURL string `yaml:"facilitatorUrl"`
+		FacilitatorURL         string `yaml:"facilitatorUrl"`
+		PerDepthTimeoutSeconds int    `yaml:"perDepthTimeoutSeconds"`
+		MaxDependencyDepth     int    `yaml:"maxDependencyDepth"`
 	} `yaml:"payment"`
 	Callback struct {
 		AllowedOrigins []string `yaml:"allowedOrigins"`
@@ -75,6 +78,9 @@ func Load(path string, overrides Overrides, lookup func(string) (string, bool)) 
 		return Config{}, err
 	}
 	agentMode := values.Agent.Mode
+	if environmentMode, exists := lookup("DEMO_AGENT_MODE"); exists && strings.TrimSpace(environmentMode) != "" {
+		agentMode = strings.TrimSpace(environmentMode)
+	}
 	if overrides.AgentMode != "" {
 		agentMode = overrides.AgentMode
 	}
@@ -95,6 +101,15 @@ func Load(path string, overrides Overrides, lookup func(string) (string, bool)) 
 	if err := validateFacilitatorURL(values.Payment.FacilitatorURL); err != nil {
 		return Config{}, err
 	}
+	if values.Payment.PerDepthTimeoutSeconds <= 0 {
+		return Config{}, fmt.Errorf("payment.perDepthTimeoutSeconds must be positive")
+	}
+	if values.Payment.MaxDependencyDepth != ExecutionGraphMaxDepth {
+		return Config{}, fmt.Errorf(
+			"payment.maxDependencyDepth must match the AgentStore execution graph limit: %d",
+			ExecutionGraphMaxDepth,
+		)
+	}
 	if len(values.Callback.AllowedOrigins) == 0 {
 		return Config{}, fmt.Errorf("callback.allowedOrigins is required")
 	}
@@ -107,7 +122,18 @@ func Load(path string, overrides Overrides, lookup func(string) (string, bool)) 
 	if err != nil {
 		return Config{}, err
 	}
-	configuration.Payment = PaymentConfig{FacilitatorURL: values.Payment.FacilitatorURL, Agents: agents}
+	perDepthTimeout := time.Duration(values.Payment.PerDepthTimeoutSeconds) * time.Second
+	invocationTimeout := perDepthTimeout * time.Duration(values.Payment.MaxDependencyDepth)
+	if invocationTimeout <= 0 || invocationTimeout/perDepthTimeout != time.Duration(values.Payment.MaxDependencyDepth) {
+		return Config{}, fmt.Errorf("payment aggregate invocation timeout is invalid")
+	}
+	configuration.Payment = PaymentConfig{
+		FacilitatorURL:     values.Payment.FacilitatorURL,
+		PerDepthTimeout:    perDepthTimeout,
+		MaxDependencyDepth: values.Payment.MaxDependencyDepth,
+		InvocationTimeout:  invocationTimeout,
+		Agents:             agents,
+	}
 	configuration.Callback = CallbackConfig{AllowedOrigins: append([]string(nil), values.Callback.AllowedOrigins...)}
 	return configuration, nil
 }

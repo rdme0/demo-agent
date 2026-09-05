@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	maximumSourceCount = 5
+	maximumSourceCount   = 5
+	webSearchInstruction = "웹 검색을 반드시 수행하고, 검색 결과에서 확인한 출처를 최소 3개 포함하세요. 응답의 sources에는 검색으로 확인한 HTTPS URL만 사용하세요."
+	markdownInstruction  = "응답은 한국어 Markdown으로 작성하고, 첫 줄은 반드시 # 제목으로 시작하세요. 검증된 출처 목록은 플랫폼이 추가하므로 별도의 출처 섹션을 만들지 마세요."
 )
 
 type OpenAIAgent struct {
@@ -63,8 +65,15 @@ func (agent OpenAIAgent) Invoke(ctx context.Context, invocation model.Invocation
 	if agent.definition.AggregateMarkdown {
 		schema = nil
 	}
+	instructions := agent.definition.Prompt
+	if agent.definition.RequiresWebSearch {
+		instructions = strings.TrimSpace(instructions) + "\n" + webSearchInstruction
+	}
+	if agent.definition.AggregateMarkdown {
+		instructions = strings.TrimSpace(instructions) + "\n" + markdownInstruction
+	}
 	response, err := agent.responseClient.Generate(ctx, agentClient.ResponseRequest{
-		Instructions:      agent.definition.Prompt,
+		Instructions:      instructions,
 		Input:             string(input),
 		Schema:            schema,
 		RequiresWebSearch: agent.definition.RequiresWebSearch,
@@ -82,7 +91,7 @@ func (agent OpenAIAgent) Invoke(ctx context.Context, invocation model.Invocation
 		return result, nil
 	}
 
-	result, err := structuredResult(agent.Code(), response)
+	result, err := structuredResult(agent.Code(), agent.definition.MinimumSources, response)
 	if err != nil {
 		return model.Result{}, err
 	}
@@ -115,7 +124,7 @@ func (agent OpenAIAgent) aggregateMarkdownResult(output string, dependencyResult
 	return model.Result{Output: markdown + "\n\n" + sourcesMarkdown(sources)}, nil
 }
 
-func structuredResult(code string, response agentClient.ResponseResult) (model.Result, error) {
+func structuredResult(code string, minimumSources int, response agentClient.ResponseResult) (model.Result, error) {
 	var decoded map[string]any
 	if err := json.Unmarshal([]byte(response.Output), &decoded); err != nil {
 		return model.Result{}, fmt.Errorf("decode %s agent output: %w", code, err)
@@ -123,8 +132,8 @@ func structuredResult(code string, response agentClient.ResponseResult) (model.R
 	if decoded == nil {
 		return model.Result{}, fmt.Errorf("decode %s agent output: expected JSON object", code)
 	}
-	if len(response.Sources) == 0 {
-		return model.Result{}, fmt.Errorf("%s agent returned no verified web sources", code)
+	if len(response.Sources) < minimumSources {
+		return model.Result{}, fmt.Errorf("%s agent returned %d verified web sources; at least %d are required", code, len(response.Sources), minimumSources)
 	}
 
 	decoded["sources"] = response.Sources

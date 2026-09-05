@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"unicode"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -74,7 +75,7 @@ func (client *OpenAIClient) Generate(ctx context.Context, request ResponseReques
 			Format: responses.ResponseFormatTextConfigUnionParam{
 				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
 					Name:   responseFormatName,
-					Schema: request.Schema,
+					Schema: normalizeSchemaForOpenAI(request.Schema),
 					Strict: openai.Bool(true),
 					Type:   constant.JSONSchema("json_schema"),
 				},
@@ -124,6 +125,37 @@ func (client *OpenAIClient) Generate(ctx context.Context, request ResponseReques
 		Output:  output,
 		Sources: sourcesFrom(response.Output),
 	}, nil
+}
+
+func normalizeSchemaForOpenAI(schema map[string]any) map[string]any {
+	normalized, ok := normalizeSchemaValue(schema).(map[string]any)
+	if !ok {
+		return map[string]any{}
+	}
+
+	return normalized
+}
+
+func normalizeSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		normalized := make(map[string]any, len(typed))
+		for key, child := range typed {
+			if key == "format" {
+				continue
+			}
+			normalized[key] = normalizeSchemaValue(child)
+		}
+		return normalized
+	case []any:
+		normalized := make([]any, len(typed))
+		for index, child := range typed {
+			normalized[index] = normalizeSchemaValue(child)
+		}
+		return normalized
+	default:
+		return value
+	}
 }
 
 func outputTokenLimit(requested int64) int64 {
@@ -215,8 +247,12 @@ func sourceFromAnnotation(title string, rawURL string) (Source, bool) {
 		return Source{}, false
 	}
 	parsedURL.Fragment = ""
+	title = strings.NewReplacer("[", "", "]", "", "<", "", ">", "", "\n", " ", "\r", " ").Replace(strings.TrimSpace(title))
 	if strings.TrimSpace(title) == "" {
 		title = parsedURL.Host
+	}
+	if strings.IndexFunc(title, unicode.IsControl) >= 0 {
+		return Source{}, false
 	}
 
 	return Source{Title: strings.TrimSpace(title), URL: parsedURL.String()}, true

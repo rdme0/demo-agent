@@ -1,8 +1,6 @@
 package x402
 
 import (
-	"time"
-
 	"demo-agent/internal/config"
 	paymentModel "demo-agent/internal/payment/model"
 
@@ -46,6 +44,6 @@ func NewMiddleware(payment config.PaymentConfig, facilitator x402.FacilitatorCli
 		ginx402.WithFacilitatorClient(facilitator),
 		ginx402.WithScheme(paymentModel.BaseSepoliaNetwork, evm.NewExactEvmScheme()),
 		ginx402.WithSyncFacilitatorOnStart(true),
-		ginx402.WithTimeout(30*time.Second),
+		ginx402.WithTimeout(payment.InvocationTimeout),
 	)
 }

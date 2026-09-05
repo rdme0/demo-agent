@@ -5,14 +5,16 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"demo-agent/catalog"
 	paymentModel "demo-agent/internal/payment/model"
 )
 
 const (
-	BaseSepoliaNetwork = paymentModel.BaseSepoliaNetwork
-	BaseSepoliaUSDC    = paymentModel.BaseSepoliaUSDC
+	BaseSepoliaNetwork     = paymentModel.BaseSepoliaNetwork
+	BaseSepoliaUSDC        = paymentModel.BaseSepoliaUSDC
+	ExecutionGraphMaxDepth = 5
 )
 
 var (
@@ -21,8 +23,11 @@ var (
 )
 
 type PaymentConfig struct {
-	FacilitatorURL string
-	Agents         map[string]paymentModel.PaymentTerms
+	FacilitatorURL     string
+	PerDepthTimeout    time.Duration
+	MaxDependencyDepth int
+	InvocationTimeout  time.Duration
+	Agents             map[string]paymentModel.PaymentTerms
 }
 
 type PaymentTerms = paymentModel.PaymentTerms
