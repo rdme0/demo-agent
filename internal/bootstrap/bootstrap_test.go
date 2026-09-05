@@ -12,10 +12,9 @@ import (
 	"testing"
 
 	"demo-agent/catalog"
-	"gopkg.in/yaml.v3"
 )
 
-func TestCatalogVerificationInputsRenderForEveryAgent(t *testing.T) {
+func TestCatalogManifestOmitsRemovedVerificationInput(t *testing.T) {
 	source, err := catalog.LoadEmbedded()
 	if err != nil {
 		t.Fatalf("load catalog: %v", err)
@@ -24,36 +23,13 @@ func TestCatalogVerificationInputsRenderForEveryAgent(t *testing.T) {
 		t.Fatalf("expected 13 catalog agents, got %d", len(source.Agents))
 	}
 	for _, agent := range source.Agents {
-		if len(agent.VerificationInput) == 0 {
-			t.Fatalf("agent %q has no deterministic verification input", agent.Code)
-		}
 		content, err := renderManifest(source, agent, mustURL(t, "http://demo-agent:8090"))
 		if err != nil {
 			t.Fatalf("render %q: %v", agent.Code, err)
 		}
-		var rendered manifest
-		if err := yaml.Unmarshal([]byte(content), &rendered); err != nil {
-			t.Fatalf("parse rendered %q: %v", agent.Code, err)
+		if strings.Contains(content, "verificationInput") {
+			t.Fatalf("rendered %q contains removed verification input", agent.Code)
 		}
-		if len(rendered.Agent.VerificationInput) == 0 {
-			t.Fatalf("rendered %q lost verification input", agent.Code)
-		}
-	}
-}
-
-func TestBootstrapOnlyBackfillsLegacyEmptyVerificationInput(t *testing.T) {
-	active := agentResponse{Versions: []agentVersionResponse{{ID: "v1", Status: "ACTIVE", Readiness: &struct {
-		Status string `json:"status"`
-	}{Status: "UNVERIFIED"}}}}
-	if !activeVersionNeedsBackfill(active, "v1", "apiVersion: agentstore/v1\nagent:\n  code: legacy\n") {
-		t.Fatal("expected legacy active version to need backfill")
-	}
-	withInput := "apiVersion: agentstore/v1\nagent:\n  code: legacy\n  verificationInput:\n    query: stable\n"
-	if activeVersionNeedsBackfill(active, "v1", withInput) {
-		t.Fatal("non-null verification input must not be backfilled")
-	}
-	if !activeVersionIsUnverified(active, "v1") {
-		t.Fatal("fixture should remain unverified")
 	}
 }
 
@@ -67,156 +43,6 @@ func TestActiveVersionSelectionUsesCatalogSemver(t *testing.T) {
 	}
 	if got := activeVersionID(agent, "3.0.0"); got != "" {
 		t.Fatalf("expected no matching version, got %q", got)
-	}
-}
-
-func TestBootstrapBackfillsAndVerifiesLegacyInputOnceOverHTTP(t *testing.T) {
-	full, err := catalog.LoadEmbedded()
-	if err != nil {
-		t.Fatalf("load catalog: %v", err)
-	}
-	source := full
-	source.FunctionContracts = []catalog.FunctionContract{full.FunctionContracts[0]}
-	source.Agents = []catalog.Definition{full.Agents[0]}
-	state := newRecoveryState()
-	desiredContent, err := renderManifest(source, source.Agents[0], mustURL(t, "http://demo-agent:8090"))
-	if err != nil {
-		t.Fatalf("render desired manifest: %v", err)
-	}
-	state.desiredContent = desiredContent
-	state.content = withoutVerificationInput(desiredContent)
-	state.digest = digest(state.content)
-	server := httptest.NewServer(http.HandlerFunc(state.handle))
-	defer server.Close()
-	client, err := NewWithAccessToken(server.URL, "http://demo-agent:8090", "fixture-demo-access")
-	if err != nil {
-		t.Fatalf("new bootstrap client: %v", err)
-	}
-	if err := client.Bootstrap(context.Background(), source); err != nil {
-		t.Fatalf("legacy bootstrap: %v", err)
-	}
-	if err := client.Bootstrap(context.Background(), source); err != nil {
-		t.Fatalf("repeat legacy bootstrap: %v", err)
-	}
-	if state.backfillCalls != 1 || state.verifyCalls != 1 {
-		t.Fatalf("expected one backfill and one verify, got backfill=%d verify=%d", state.backfillCalls, state.verifyCalls)
-	}
-}
-
-func TestBootstrapRetriesVerificationAfterBackfillSuccess(t *testing.T) {
-	full, err := catalog.LoadEmbedded()
-	if err != nil {
-		t.Fatalf("load catalog: %v", err)
-	}
-	source := full
-	source.FunctionContracts = []catalog.FunctionContract{full.FunctionContracts[0]}
-	source.Agents = []catalog.Definition{full.Agents[0]}
-	state := newRecoveryState()
-	state.verifyFailures = 1
-	desiredContent, err := renderManifest(source, source.Agents[0], mustURL(t, "http://demo-agent:8090"))
-	if err != nil {
-		t.Fatalf("render desired manifest: %v", err)
-	}
-	state.desiredContent = desiredContent
-	state.content = withoutVerificationInput(desiredContent)
-	state.digest = digest(state.content)
-	server := httptest.NewServer(http.HandlerFunc(state.handle))
-	defer server.Close()
-	client, err := NewWithAccessToken(server.URL, "http://demo-agent:8090", "fixture-demo-access")
-	if err != nil {
-		t.Fatalf("new bootstrap client: %v", err)
-	}
-	if err := client.Bootstrap(context.Background(), source); err == nil {
-		t.Fatal("expected first verification attempt to fail")
-	}
-	if err := client.Bootstrap(context.Background(), source); err != nil {
-		t.Fatalf("retry bootstrap: %v", err)
-	}
-	if state.backfillCalls != 1 || state.verifyCalls != 2 {
-		t.Fatalf("expected one backfill and two verification attempts, got backfill=%d verify=%d", state.backfillCalls, state.verifyCalls)
-	}
-}
-
-func TestManifestVerificationInputComparisonDetectsCatalogDrift(t *testing.T) {
-	existing := "apiVersion: agentstore/v1\nagent:\n  code: legacy\n  verificationInput:\n    query: old\n"
-	desired := "apiVersion: agentstore/v1\nagent:\n  code: legacy\n  verificationInput:\n    query: new\n"
-	if manifestVerificationInputMatches(existing, desired) {
-		t.Fatal("different verification inputs must be treated as drift")
-	}
-	if !manifestVerificationInputMatches(desired, desired) {
-		t.Fatal("identical verification inputs should match")
-	}
-}
-
-type recoveryState struct {
-	content        string
-	digest         string
-	desiredContent string
-	backfillCalls  int
-	verifyCalls    int
-	verifyFailures int
-	readiness      string
-}
-
-func newRecoveryState() *recoveryState {
-	return &recoveryState{readiness: "UNVERIFIED"}
-}
-
-func withoutVerificationInput(content string) string {
-	var value map[string]any
-	if err := yaml.Unmarshal([]byte(content), &value); err != nil {
-		return content
-	}
-	if agent, ok := value["agent"].(map[string]any); ok {
-		delete(agent, "verificationInput")
-	}
-	encoded, err := yaml.Marshal(value)
-	if err != nil {
-		return content
-	}
-	return string(encoded)
-}
-
-func (state *recoveryState) handle(writer http.ResponseWriter, request *http.Request) {
-	write := func(status int, result any) {
-		writer.Header().Set("Content-Type", "application/json")
-		writer.WriteHeader(status)
-		_ = json.NewEncoder(writer).Encode(map[string]any{"isSuccess": status < 300, "result": result})
-	}
-	if request.Header.Get("Authorization") != "Bearer fixture-demo-access" {
-		write(http.StatusUnauthorized, nil)
-		return
-	}
-	switch {
-	case request.Method == http.MethodGet && request.URL.Path == "/api/function-contracts":
-		write(http.StatusOK, []functionContractResponse{})
-	case request.Method == http.MethodPost && request.URL.Path == "/api/function-contracts":
-		write(http.StatusCreated, map[string]any{})
-	case request.Method == http.MethodPost && request.URL.Path == "/api/agent-manifests/validate":
-		var body map[string]string
-		_ = json.NewDecoder(request.Body).Decode(&body)
-		state.desiredContent = body["content"]
-		write(http.StatusOK, manifestResponse{SHA256: digest(state.desiredContent)})
-	case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/agents/"):
-		write(http.StatusOK, map[string]any{"versions": []map[string]any{{"id": "catalog-version", "semver": "1.0.0", "status": "ACTIVE", "readiness": map[string]string{"status": state.readiness}}}})
-	case request.Method == http.MethodGet && strings.HasSuffix(request.URL.Path, "/manifest"):
-		write(http.StatusOK, manifestResponse{SHA256: state.digest, Content: state.content})
-	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/verification-input/backfill"):
-		state.backfillCalls++
-		state.content = state.desiredContent
-		state.digest = digest(state.content)
-		write(http.StatusOK, map[string]any{})
-	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/verify"):
-		state.verifyCalls++
-		if state.verifyFailures > 0 {
-			state.verifyFailures--
-			write(http.StatusServiceUnavailable, map[string]any{})
-			return
-		}
-		state.readiness = "VERIFIED"
-		write(http.StatusOK, map[string]any{})
-	default:
-		write(http.StatusNotFound, nil)
 	}
 }
 
@@ -257,9 +83,10 @@ func TestBootstrapCreatesThenReusesCatalogAndRejectsDrift(t *testing.T) {
 }
 
 type bootstrapState struct {
-	contracts map[functionContractKey]functionContractResponse
-	agents    map[string]agentState
-	pending   map[string]string
+	contracts      map[functionContractKey]functionContractResponse
+	agents         map[string]agentState
+	pending        map[string]string
+	pendingContent map[string]string
 }
 type agentState struct {
 	versionID string
@@ -268,7 +95,7 @@ type agentState struct {
 }
 
 func newBootstrapState() *bootstrapState {
-	return &bootstrapState{contracts: map[functionContractKey]functionContractResponse{}, agents: map[string]agentState{}, pending: map[string]string{}}
+	return &bootstrapState{contracts: map[functionContractKey]functionContractResponse{}, agents: map[string]agentState{}, pending: map[string]string{}, pendingContent: map[string]string{}}
 }
 func (state *bootstrapState) handle(writer http.ResponseWriter, request *http.Request) {
 	write := func(status int, result any) {
@@ -302,11 +129,12 @@ func (state *bootstrapState) handle(writer http.ResponseWriter, request *http.Re
 		code := manifestCode(value["content"])
 		versionID := code + "-v1"
 		state.pending[versionID] = digest(value["content"])
+		state.pendingContent[versionID] = value["content"]
 		write(http.StatusCreated, map[string]string{"versionId": versionID})
 	case request.Method == http.MethodPost && strings.HasPrefix(request.URL.Path, "/api/agent-versions/") && strings.HasSuffix(request.URL.Path, "/publish"):
 		versionID := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/api/agent-versions/"), "/publish")
 		code := strings.TrimSuffix(versionID, "-v1")
-		state.agents[code] = agentState{versionID: versionID, sha256: state.pending[versionID]}
+		state.agents[code] = agentState{versionID: versionID, sha256: state.pending[versionID], content: state.pendingContent[versionID]}
 		write(http.StatusOK, map[string]string{})
 	case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/agents/"):
 		code := strings.TrimPrefix(request.URL.Path, "/api/agents/")

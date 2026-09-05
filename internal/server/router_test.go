@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"demo-agent/catalog"
 	"demo-agent/internal/agent/dto"
@@ -116,8 +117,11 @@ func newX402Server(t *testing.T) *gin.Engine {
 	application, err := app.New(config.Config{
 		AgentMode: config.AgentModeFixture,
 		Payment: config.PaymentConfig{
-			FacilitatorURL: "https://facilitator.test",
-			Agents:         terms,
+			FacilitatorURL:     "https://facilitator.test",
+			PerDepthTimeout:    30 * time.Second,
+			MaxDependencyDepth: 5,
+			InvocationTimeout:  150 * time.Second,
+			Agents:             terms,
 		},
 		Callback: config.CallbackConfig{AllowedOrigins: []string{"http://127.0.0.1:8080"}},
 	}, facilitatorStub{})

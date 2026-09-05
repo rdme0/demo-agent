@@ -13,8 +13,12 @@ import (
 func TestOpenAIAgentEncodesInvocationAndAttachesVerifiedSources(t *testing.T) {
 	responseClient := &responseClientStub{
 		response: agentClient.ResponseResult{
-			Output:  `{"summary":"재무 건전성은 보통 수준입니다.","keyMetrics":["매출"],"risks":["변동성"]}`,
-			Sources: []agentClient.Source{{Title: "공식 공시", URL: "https://example.com/disclosure"}},
+			Output: `{"summary":"재무 건전성은 보통 수준입니다.","keyMetrics":["매출"],"risks":["변동성"]}`,
+			Sources: []agentClient.Source{
+				{Title: "공식 공시", URL: "https://example.com/disclosure"},
+				{Title: "실적 발표", URL: "https://example.com/earnings"},
+				{Title: "시장 자료", URL: "https://example.com/market"},
+			},
 		},
 	}
 	agents, err := NewOpenAIAgents(responseClient)
@@ -47,6 +51,9 @@ func TestOpenAIAgentEncodesInvocationAndAttachesVerifiedSources(t *testing.T) {
 	}
 	if !strings.Contains(responseClient.request.Instructions, "웹 검색") {
 		t.Fatalf("expected Korean web-search instructions: %s", responseClient.request.Instructions)
+	}
+	if !strings.Contains(responseClient.request.Instructions, "최소 3개") {
+		t.Fatalf("expected source-count requirement: %s", responseClient.request.Instructions)
 	}
 
 	var input map[string]any
@@ -92,6 +99,9 @@ func TestInvestmentAgentReturnsMarkdownWithThreeToFiveVerifiedSources(t *testing
 	}
 	if responseClient.request.Schema != nil {
 		t.Fatalf("investment Markdown response must not request JSON schema: %#v", responseClient.request.Schema)
+	}
+	if !strings.Contains(responseClient.request.Instructions, "# 제목") {
+		t.Fatalf("expected Markdown heading requirement: %s", responseClient.request.Instructions)
 	}
 }
 
@@ -169,6 +179,21 @@ func TestOpenAIAgentRejectsInvalidJSONOutput(t *testing.T) {
 	_, err = agents[1].Invoke(context.Background(), model.Invocation{})
 	if err == nil {
 		t.Fatal("expected invalid JSON output to fail")
+	}
+}
+
+func TestOpenAIAgentRejectsFewerThanMinimumVerifiedSources(t *testing.T) {
+	agents, err := NewOpenAIAgents(&responseClientStub{response: agentClient.ResponseResult{
+		Output:  `{"summary":"요약"}`,
+		Sources: []agentClient.Source{{Title: "공식 자료", URL: "https://example.com/source-1"}, {Title: "보도 자료", URL: "https://example.com/source-2"}},
+	}})
+	if err != nil {
+		t.Fatalf("new OpenAI agents: %v", err)
+	}
+
+	_, err = agents[1].Invoke(context.Background(), model.Invocation{})
+	if err == nil || !strings.Contains(err.Error(), "at least 3") {
+		t.Fatalf("expected minimum source failure, got %v", err)
 	}
 }
 

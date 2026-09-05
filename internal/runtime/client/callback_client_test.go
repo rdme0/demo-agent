@@ -14,6 +14,8 @@ import (
 	runtimeDTO "demo-agent/internal/runtime/dto"
 )
 
+const callbackTestTimeout = 30 * time.Second
+
 func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer invocation-token" {
@@ -54,11 +56,21 @@ func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
 	}
 }
 
-func TestCallbackClientInvokesIndependentDependenciesConcurrently(t *testing.T) {
+func TestCallbackClientInvokesIndependentDependenciesInParallel(t *testing.T) {
 	var invocationCount atomic.Int32
+	var activeCount atomic.Int32
+	var maxActiveCount atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		invocationCount.Add(1)
+		active := activeCount.Add(1)
+		for {
+			currentMax := maxActiveCount.Load()
+			if active <= currentMax || maxActiveCount.CompareAndSwap(currentMax, active) {
+				break
+			}
+		}
 		time.Sleep(200 * time.Millisecond)
+		activeCount.Add(-1)
 		_, _ = writer.Write([]byte(`{"isSuccess":true,"result":{"output":{"completed":true}}}`))
 	}))
 	defer server.Close()
@@ -74,13 +86,54 @@ func TestCallbackClientInvokesIndependentDependenciesConcurrently(t *testing.T) 
 		},
 	}, "")
 	if err != nil {
-		t.Fatalf("invoke concurrent callbacks: %v", err)
+		t.Fatalf("invoke parallel callbacks: %v", err)
 	}
 	if invocationCount.Load() != 3 || len(results) != 3 {
 		t.Fatalf("unexpected callback results: count=%d results=%#v", invocationCount.Load(), results)
 	}
-	if elapsed := time.Since(startedAt); elapsed >= 500*time.Millisecond {
-		t.Fatalf("dependencies were not invoked concurrently: %s", elapsed)
+	if maxActiveCount.Load() != 3 {
+		t.Fatalf("independent callbacks did not overlap: max active=%d", maxActiveCount.Load())
+	}
+	if elapsed := time.Since(startedAt); elapsed >= 550*time.Millisecond {
+		t.Fatalf("independent dependencies were not invoked in parallel: %s", elapsed)
+	}
+}
+
+func TestCallbackClientKeepsDepthTwoCallbackOpenBeyondOneNodeBudget(t *testing.T) {
+	nested := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		time.Sleep(45 * time.Millisecond)
+		_, _ = writer.Write([]byte(`{"output":{"nested":true}}`))
+	}))
+	defer nested.Close()
+
+	callback := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		response, err := http.Get(nested.URL)
+		if err != nil {
+			t.Fatalf("call nested callback fixture: %v", err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("unexpected nested callback status: %d", response.StatusCode)
+		}
+		_, _ = writer.Write([]byte(`{"isSuccess":true,"result":{"output":{"completed":true}}}`))
+	}))
+	defer callback.Close()
+
+	client, err := NewCallbackClient([]string{callback.URL}, 30*time.Millisecond, 5)
+	if err != nil {
+		t.Fatalf("new callback client: %v", err)
+	}
+	results, err := client.Invoke(context.Background(), runtimeDTO.Request{
+		CallbackURL: callback.URL,
+		Dependencies: []runtimeDTO.Dependency{{
+			CallPath: []string{"root", "child"},
+		}},
+	}, "")
+	if err != nil {
+		t.Fatalf("depth-two callback must outlive one 30ms node budget: %v", err)
+	}
+	if results["child"].(map[string]any)["completed"] != true {
+		t.Fatalf("unexpected callback output: %#v", results)
 	}
 }
 
@@ -143,7 +196,11 @@ func TestCallbackClientSetsDeadlineOnCallbackRequest(t *testing.T) {
 				t.Fatal("expected callback request deadline")
 			}
 			remaining := time.Until(deadline)
-			if remaining <= 0 || remaining > callbackTTL {
+			expected, timeoutErr := client.callbackTimeout([]string{"risk"})
+			if timeoutErr != nil {
+				t.Fatalf("calculate callback timeout: %v", timeoutErr)
+			}
+			if remaining <= 0 || remaining > expected {
 				t.Fatalf("unexpected callback deadline: %s", remaining)
 			}
 			return &http.Response{
@@ -226,7 +283,7 @@ type roundTripper func(*http.Request) (*http.Response, error)
 
 func testCallbackClient(t *testing.T, origin string) *CallbackClient {
 	t.Helper()
-	client, err := NewCallbackClient([]string{origin})
+	client, err := NewCallbackClient([]string{origin}, callbackTestTimeout, 5)
 	if err != nil {
 		t.Fatalf("new callback client: %v", err)
 	}

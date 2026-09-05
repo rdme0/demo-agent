@@ -101,6 +101,43 @@ func TestOpenAIClientGeneratesStructuredWebSearchResponse(t *testing.T) {
 	}
 }
 
+func TestNormalizeSchemaForOpenAIRemovesUnsupportedFormatsWithoutMutatingContract(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"sources": []any{
+				map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"url": map[string]any{
+							"type":   "string",
+							"format": "uri",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	normalized := normalizeSchemaForOpenAI(schema)
+	normalizedProperties := normalized["properties"].(map[string]any)
+	normalizedSources := normalizedProperties["sources"].([]any)
+	normalizedSource := normalizedSources[0].(map[string]any)
+	normalizedSourceProperties := normalizedSource["properties"].(map[string]any)
+	normalizedURL := normalizedSourceProperties["url"].(map[string]any)
+	if _, exists := normalizedURL["format"]; exists {
+		t.Fatalf("OpenAI schema retained unsupported format: %#v", normalizedURL)
+	}
+
+	originalProperties := schema["properties"].(map[string]any)
+	originalSources := originalProperties["sources"].([]any)
+	originalSource := originalSources[0].(map[string]any)
+	originalURL := originalSource["properties"].(map[string]any)["url"].(map[string]any)
+	if originalURL["format"] != "uri" {
+		t.Fatalf("contract schema was mutated: %#v", originalURL)
+	}
+}
+
 func TestOpenAIClientRejectsWebSearchWithoutCompletedCall(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
@@ -175,5 +212,13 @@ func TestSourceFromAnnotationRejectsUnsafeURLsAndNormalizesFragments(t *testing.
 	source, ok := sourceFromAnnotation("", "https://example.com/report#section")
 	if !ok || source.Title != "example.com" || source.URL != "https://example.com/report" {
 		t.Fatalf("unexpected normalized source: %#v, %t", source, ok)
+	}
+
+	source, ok = sourceFromAnnotation("[공식]\n자료", "https://example.com/report")
+	if !ok || source.Title != "공식 자료" {
+		t.Fatalf("unexpected normalized source title: %#v, %t", source, ok)
+	}
+	if _, ok := sourceFromAnnotation("\x00", "https://example.com/report"); ok {
+		t.Fatal("expected control-character source title to be rejected")
 	}
 }
