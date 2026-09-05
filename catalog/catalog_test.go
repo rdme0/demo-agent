@@ -35,7 +35,11 @@ func TestCatalogRejectsUnknownFieldAndDuplicateCode(t *testing.T) {
 	if _, err := Parse(append(append([]byte(nil), embeddedAgents...), []byte("\nunknown: value\n")...)); err == nil {
 		t.Fatal("expected unknown YAML field to fail")
 	}
-	duplicated := strings.Replace(string(embeddedAgents), "  - {code: financial-analysis,", "  - {code: investment-analysis,", 1)
+	contracts, agents, found := strings.Cut(string(embeddedAgents), "\nagents:\n")
+	if !found {
+		t.Fatal("catalog must contain agents")
+	}
+	duplicated := contracts + "\nagents:\n" + strings.Replace(agents, "  - code: financial-analysis\n", "  - code: investment-analysis\n", 1)
 	if _, err := Parse([]byte(duplicated)); err == nil || !strings.Contains(err.Error(), "duplicate agent code") {
 		t.Fatalf("expected duplicate code to fail, got %v", err)
 	}
@@ -57,20 +61,23 @@ func TestCatalogRejectsFunctionContractSchemaThatCannotReachSpring(t *testing.T)
 	}{
 		{
 			name:    "non-object input root",
-			content: strings.Replace(string(embeddedAgents), "inputSchema: {type: object, additionalProperties: true}", "inputSchema: {type: string}", 1),
+			content: strings.Replace(string(embeddedAgents), "inputSchema:\n      type: object", "inputSchema:\n      type: string", 1),
 		},
 		{
 			name:    "output format mismatch",
-			content: strings.Replace(string(embeddedAgents), "outputSchema: {type: string}", "outputSchema: {type: object}", 1),
+			content: strings.Replace(string(embeddedAgents), "outputSchema:\n      type: string", "outputSchema:\n      type: object", 1),
 		},
 		{
 			name:    "remote reference",
-			content: strings.Replace(string(embeddedAgents), "inputSchema: {type: object, additionalProperties: true}", "inputSchema: {type: object, \"$ref\": https://example.com/schema}", 1),
+			content: strings.Replace(string(embeddedAgents), "inputSchema:\n      type: object", "inputSchema:\n      type: object\n      $ref: https://example.com/schema", 1),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.content == string(embeddedAgents) {
+				t.Fatal("test must modify the catalog before checking validation")
+			}
 			if _, err := Parse([]byte(test.content)); err == nil {
 				t.Fatal("expected invalid schema to fail")
 			}

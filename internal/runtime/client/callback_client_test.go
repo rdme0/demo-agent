@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,20 @@ func TestCallbackClientPropagatesAuthorizationAndOutput(t *testing.T) {
 		}
 		if request.Header.Get("Idempotency-Key") == "" {
 			t.Fatal("expected idempotency key")
+		}
+
+		payload := make(map[string]any)
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode callback payload: %v", err)
+		}
+		if _, exists := payload["parentStepId"]; exists {
+			t.Fatal("callback payload must not include parentStepId; Spring derives the parent from the invocation token")
+		}
+		if payload["agentVersionId"] != "financial-v1" {
+			t.Fatalf("unexpected agentVersionId: %#v", payload["agentVersionId"])
+		}
+		if _, exists := payload["callPath"]; !exists {
+			t.Fatal("expected callback callPath")
 		}
 		_, _ = writer.Write([]byte(`{"isSuccess":true,"message":"success","errorCode":null,"result":{"stepId":"child-step","output":{"child":true},"costAtomic":"1000"}}`))
 	}))

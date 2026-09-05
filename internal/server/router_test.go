@@ -70,8 +70,8 @@ func TestServerProtectsConfiguredRoutesWithX402(t *testing.T) {
 		amount string
 		payTo  string
 	}{
-		{code: "investment-analysis", amount: "1000", payTo: "0x0000000000000000000000000000000000000101"},
-		{code: "financial-analysis", amount: "1000", payTo: "0x0000000000000000000000000000000000000102"},
+		{code: "investment-analysis", amount: "1000", payTo: "0xb011996927Bb5e62818Cd39D7B1587dD53Cff2A9"},
+		{code: "financial-analysis", amount: "1000", payTo: "0x015AefEd87B781B7da124076d3A668870A5737b5"},
 	}
 	for _, test := range tests {
 		request := httptest.NewRequest(http.MethodPost, "/agents/"+test.code+"/invoke", nil)
