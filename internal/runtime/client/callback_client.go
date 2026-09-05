@@ -64,7 +64,6 @@ func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Re
 			output, err := client.invokeDependency(
 				callbackContext,
 				parsedURL,
-				callback.ParentStepID,
 				dependency,
 				authorization,
 			)
@@ -90,9 +89,8 @@ func (client *CallbackClient) Invoke(ctx context.Context, callback runtimeDTO.Re
 	return results, nil
 }
 
-func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL *url.URL, parentStepID string, dependency runtimeDTO.Dependency, authorization string) (any, error) {
+func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL *url.URL, dependency runtimeDTO.Dependency, authorization string) (any, error) {
 	payload := map[string]any{
-		"parentStepId":   parentStepID,
 		"agentVersionId": dependency.AgentVersionID,
 		"callPath":       dependency.CallPath,
 		"input":          dependency.Input,
