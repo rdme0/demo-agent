@@ -40,7 +40,7 @@ func NewWithAccessToken(agentStoreBaseURL, demoAgentBaseURL, accessToken string)
 
 func (client *Client) Bootstrap(ctx context.Context, source catalog.Catalog) error {
 	if client.accessToken == "" {
-		return fmt.Errorf("AGENT_STORE_DEMO_ACCESS_TOKEN is required; click 데모 시작 in AgentStore and provide the 365-day demo access token before bootstrapping")
+		return fmt.Errorf("AGENT_STORE_DEMO_ACCESS_TOKEN is required; click 데모 시작 in AgentStore and provide the 6-hour demo access token before bootstrapping")
 	}
 	contracts, err := client.functionContracts(ctx)
 	if err != nil {
@@ -88,30 +88,8 @@ func (client *Client) Bootstrap(ctx context.Context, source catalog.Catalog) err
 		if err != nil {
 			return fmt.Errorf("read active manifest %q: %w", agent.Code, err)
 		}
-		legacyInputOnly := existingManifest.SHA256 != desired.SHA256 && sameManifestExceptVerificationInput(existingManifest.Content, manifest)
-		if existingManifest.SHA256 != desired.SHA256 && !legacyInputOnly {
+		if existingManifest.SHA256 != desired.SHA256 {
 			return fmt.Errorf("catalog drift: active agent %q manifest differs", agent.Code)
-		}
-		if legacyInputOnly && activeVersionNeedsBackfill(existing, activeID, existingManifest.Content) {
-			if err := client.backfillVerificationInput(ctx, activeID, agent.VerificationInput); err != nil {
-				return fmt.Errorf("backfill verification input %q: %w", agent.Code, err)
-			}
-			if err := client.verify(ctx, activeID); err != nil {
-				return fmt.Errorf("verify active agent %q: %w", agent.Code, err)
-			}
-		} else if legacyInputOnly {
-			if !manifestVerificationInputMatches(existingManifest.Content, manifest) {
-				return fmt.Errorf("catalog drift: active agent %q verification input differs", agent.Code)
-			}
-			if activeVersionIsUnverified(existing, activeID) {
-				if err := client.verify(ctx, activeID); err != nil {
-					return fmt.Errorf("verify active agent %q: %w", agent.Code, err)
-				}
-			}
-		} else if activeVersionIsUnverified(existing, activeID) {
-			if err := client.verify(ctx, activeID); err != nil {
-				return fmt.Errorf("verify active agent %q: %w", agent.Code, err)
-			}
 		}
 	}
 	return nil
@@ -160,12 +138,9 @@ type agentResponse struct {
 	Versions []agentVersionResponse `json:"versions"`
 }
 type agentVersionResponse struct {
-	ID        string `json:"id"`
-	Semver    string `json:"semver"`
-	Status    string `json:"status"`
-	Readiness *struct {
-		Status string `json:"status"`
-	} `json:"readiness"`
+	ID     string `json:"id"`
+	Semver string `json:"semver"`
+	Status string `json:"status"`
 }
 type manifestResponse struct {
 	SHA256  string `json:"sha256"`
@@ -197,12 +172,6 @@ func (client *Client) importManifest(ctx context.Context, content string) (strin
 
 func (client *Client) publish(ctx context.Context, versionID string) error {
 	return client.request(ctx, http.MethodPost, "/api/agent-versions/"+url.PathEscape(versionID)+"/publish", nil, nil)
-}
-func (client *Client) verify(ctx context.Context, versionID string) error {
-	return client.request(ctx, http.MethodPost, "/api/agent-versions/"+url.PathEscape(versionID)+"/verify", nil, nil)
-}
-func (client *Client) backfillVerificationInput(ctx context.Context, versionID string, verificationInput map[string]any) error {
-	return client.request(ctx, http.MethodPost, "/api/agent-versions/"+url.PathEscape(versionID)+"/verification-input/backfill", map[string]any{"verificationInput": verificationInput}, nil)
 }
 func (client *Client) exportManifest(ctx context.Context, versionID string) (manifestResponse, error) {
 	var response manifestResponse
@@ -282,65 +251,6 @@ func activeVersionID(agent agentResponse, desiredSemver string) string {
 	}
 	return ""
 }
-func activeVersionNeedsBackfill(agent agentResponse, activeID, manifestContent string) bool {
-	if manifestHasVerificationInput(manifestContent) {
-		return false
-	}
-	for _, version := range agent.Versions {
-		if version.ID == activeID && version.Status == "ACTIVE" && version.Readiness != nil && version.Readiness.Status == "UNVERIFIED" {
-			return true
-		}
-	}
-	return false
-}
-
-func activeVersionIsUnverified(agent agentResponse, activeID string) bool {
-	for _, version := range agent.Versions {
-		if version.ID == activeID && version.Status == "ACTIVE" && version.Readiness != nil && version.Readiness.Status == "UNVERIFIED" {
-			return true
-		}
-	}
-	return false
-}
-
-func manifestHasVerificationInput(content string) bool {
-	_, found := manifestVerificationInput(content)
-	return found
-}
-func manifestVerificationInputMatches(existing, desired string) bool {
-	existingInput, existingFound := manifestVerificationInput(existing)
-	desiredInput, desiredFound := manifestVerificationInput(desired)
-	return existingFound && desiredFound && equalJSON(existingInput, desiredInput)
-}
-func manifestVerificationInput(content string) (any, bool) {
-	var value map[string]any
-	if yaml.Unmarshal([]byte(content), &value) != nil {
-		return nil, false
-	}
-	agent, ok := value["agent"].(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	input, exists := agent["verificationInput"]
-	return input, exists && input != nil
-}
-func sameManifestExceptVerificationInput(existing, desired string) bool {
-	var existingValue map[string]any
-	var desiredValue map[string]any
-	if yaml.Unmarshal([]byte(existing), &existingValue) != nil || yaml.Unmarshal([]byte(desired), &desiredValue) != nil {
-		return false
-	}
-	removeVerificationInput(existingValue)
-	removeVerificationInput(desiredValue)
-	return equalJSON(existingValue, desiredValue)
-}
-func removeVerificationInput(value map[string]any) {
-	agent, ok := value["agent"].(map[string]any)
-	if !ok {
-		return
-	}
-	delete(agent, "verificationInput")
-}
 func parseBaseURL(rawURL string) (*url.URL, error) {
 	parsed, err := url.ParseRequestURI(strings.TrimRight(rawURL, "/"))
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
@@ -355,16 +265,15 @@ type manifest struct {
 	Dependencies []manifestDependency `yaml:"dependencies,omitempty"`
 }
 type manifestAgent struct {
-	DeveloperID       string           `yaml:"developerId"`
-	Code              string           `yaml:"code"`
-	Name              string           `yaml:"name"`
-	Description       string           `yaml:"description"`
-	Version           string           `yaml:"version"`
-	UsageType         string           `yaml:"usageType"`
-	Function          manifestFunction `yaml:"function"`
-	Endpoint          string           `yaml:"endpoint"`
-	Payment           manifestPayment  `yaml:"payment"`
-	VerificationInput map[string]any   `yaml:"verificationInput"`
+	DeveloperID string           `yaml:"developerId"`
+	Code        string           `yaml:"code"`
+	Name        string           `yaml:"name"`
+	Description string           `yaml:"description"`
+	Version     string           `yaml:"version"`
+	UsageType   string           `yaml:"usageType"`
+	Function    manifestFunction `yaml:"function"`
+	Endpoint    string           `yaml:"endpoint"`
+	Payment     manifestPayment  `yaml:"payment"`
 }
 type manifestFunction struct {
 	Code    string `yaml:"code"`
@@ -396,7 +305,7 @@ type manifestResolution struct {
 }
 
 func renderManifest(source catalog.Catalog, agent catalog.Definition, demoAgentURL *url.URL) (string, error) {
-	value := manifest{APIVersion: catalog.APIVersion, Agent: manifestAgent{DeveloperID: source.DeveloperID, Code: agent.Code, Name: agent.Name, Description: agent.Description, Version: source.AgentVersion, UsageType: agent.UsageType, Function: manifestFunction{Code: agent.FunctionCode, Version: source.ContractVersion}, Endpoint: demoAgentURL.String() + "/agents/" + agent.Code + "/invoke", Payment: manifestPayment{PriceAtomic: agent.PriceAtomic, Network: source.Network, Asset: source.Asset, PayTo: agent.PayTo}, VerificationInput: agent.VerificationInput}}
+	value := manifest{APIVersion: catalog.APIVersion, Agent: manifestAgent{DeveloperID: source.DeveloperID, Code: agent.Code, Name: agent.Name, Description: agent.Description, Version: source.AgentVersion, UsageType: agent.UsageType, Function: manifestFunction{Code: agent.FunctionCode, Version: source.ContractVersion}, Endpoint: demoAgentURL.String() + "/agents/" + agent.Code + "/invoke", Payment: manifestPayment{PriceAtomic: agent.PriceAtomic, Network: source.Network, Asset: source.Asset, PayTo: agent.PayTo}}}
 	for _, dependency := range agent.Dependencies {
 		value.Dependencies = append(value.Dependencies, manifestDependency{Function: manifestFunction{Code: dependency.FunctionCode, Version: source.ContractVersion}, Providers: manifestProviders{Scope: dependency.ProviderScope}, Constraints: manifestConstraints{VersionConstraint: dependency.VersionConstraint, Required: dependency.Required, MaxPriceAtomic: dependency.MaxPriceAtomic, MaxCalls: dependency.MaxCalls}, Resolution: manifestResolution{Strategy: dependency.Strategy}})
 	}

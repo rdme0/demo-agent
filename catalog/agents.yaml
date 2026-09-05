@@ -449,8 +449,6 @@ agents:
     usageType: user_facing
     priceAtomic: "1000"
     payTo: "0xb011996927Bb5e62818Cd39D7B1587dD53Cff2A9"
-    verificationInput:
-      query: Base Sepolia USDC automation
     runtime:
       role: root
       prompt: "투자 분석 결과를 한국어 Markdown으로 작성하세요."
@@ -489,9 +487,6 @@ agents:
     usageType: internal_component
     priceAtomic: "1000"
     payTo: "0x015AefEd87B781B7da124076d3A668870A5737b5"
-    verificationInput:
-      asset: LINK
-      period: quarterly
     runtime:
       role: specialist
       prompt: "재무 분석 에이전트입니다. 최신 재무 근거를 웹 검색으로 확인하세요."
@@ -518,8 +513,6 @@ agents:
     usageType: internal_component
     priceAtomic: "600"
     payTo: "0x4cF0436a08A810cC315AA849B262Df091fD374f8"
-    verificationInput:
-      topic: Base ecosystem
     runtime:
       role: specialist
       prompt: "시장 뉴스 분석 에이전트입니다."
@@ -545,8 +538,6 @@ agents:
     usageType: internal_component
     priceAtomic: "1200"
     payTo: "0x1CF55505912C01aDC73ef2F75771622209b4E7b9"
-    verificationInput:
-      topic: Base ecosystem
     runtime:
       role: specialist
       prompt: "심층 시장 뉴스 분석 에이전트입니다."
@@ -573,9 +564,6 @@ agents:
     usageType: internal_component
     priceAtomic: "900"
     payTo: "0x968012F44476d7e28289094fa5aF5832c7fA47aD"
-    verificationInput:
-      asset: ETH
-      horizon: 30d
     runtime:
       role: specialist
       prompt: "투자 위험 분석 에이전트입니다."
@@ -601,8 +589,6 @@ agents:
     usageType: user_facing
     priceAtomic: "1000"
     payTo: "0xa785f99150AE0A6e2f2A25665a0e42947a3bd407"
-    verificationInput:
-      query: noise cancelling headphones
     runtime:
       role: root
       prompt: "상품 구매 도우미입니다."
@@ -641,8 +627,6 @@ agents:
     usageType: internal_component
     priceAtomic: "800"
     payTo: "0x2e06ff4d6Fc8b67b118FEC04ffA4a248feb8B542"
-    verificationInput:
-      query: USB-C monitor
     runtime:
       role: specialist
       prompt: "상품 탐색 에이전트입니다."
@@ -673,8 +657,6 @@ agents:
     usageType: internal_component
     priceAtomic: "900"
     payTo: "0x47820b8eDF61241b05e324116B60e909d7329aBF"
-    verificationInput:
-      product: USB-C monitor
     runtime:
       role: specialist
       prompt: "리뷰 분석 에이전트입니다."
@@ -701,8 +683,6 @@ agents:
     usageType: internal_component
     priceAtomic: "700"
     payTo: "0x66BEAf6A5AD3868377450502116910f566B58bf2"
-    verificationInput:
-      product: USB-C monitor
     runtime:
       role: specialist
       prompt: "가격 비교 에이전트입니다."
@@ -711,12 +691,10 @@ agents:
         summary: 판매처별 조건이 다릅니다.
         offers:
           - seller: Demo Store A
-            priceText: ₩100
-            000:
+            priceText: "₩100,000"
             condition: 무료 배송
           - seller: Demo Store B
-            priceText: ₩98
-            000:
+            priceText: "₩98,000"
             condition: 멤버십 필요
         sources:
           - title: price-comparison demo source 1
@@ -733,9 +711,6 @@ agents:
     usageType: user_facing
     priceAtomic: "1000"
     payTo: "0x94c64320E9C6b1aa8A62dAD0e6D4ade61a91F861"
-    verificationInput:
-      destination: Seoul
-      days: 3
     runtime:
       role: root
       prompt: "여행 계획 에이전트입니다."
@@ -774,8 +749,6 @@ agents:
     usageType: internal_component
     priceAtomic: "800"
     payTo: "0x14b50b45cB93497CcbeC28a96f7874ACb617A483"
-    verificationInput:
-      destination: Seoul
     runtime:
       role: specialist
       prompt: "여행지 조사 에이전트입니다."
@@ -802,9 +775,6 @@ agents:
     usageType: internal_component
     priceAtomic: "600"
     payTo: "0xD1bB7a93D554c62026874219DEf4A67EEFd537Fb"
-    verificationInput:
-      location: Seoul
-      days: 3
     runtime:
       role: specialist
       prompt: "날씨 예보 에이전트입니다."
@@ -831,8 +801,6 @@ agents:
     usageType: internal_component
     priceAtomic: "900"
     payTo: "0xC2c23511adA90a4006F98A99BfcbcACfc1Edf02a"
-    verificationInput:
-      destination: Seoul
     runtime:
       role: specialist
       prompt: "여행 안전 에이전트입니다."

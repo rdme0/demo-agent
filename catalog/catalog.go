@@ -63,7 +63,6 @@ type Definition struct {
 	UsageType           string         `yaml:"usageType"`
 	PriceAtomic         string         `yaml:"priceAtomic"`
 	PayTo               string         `yaml:"payTo"`
-	VerificationInput   map[string]any `yaml:"verificationInput"`
 	Prompt              string         `yaml:"-"`
 	Fixture             any            `yaml:"-"`
 	InputSchema         map[string]any `yaml:"-"`
@@ -155,9 +154,6 @@ func Parse(content []byte) (Catalog, error) {
 		}
 		if _, exists := codes[agent.Code]; exists {
 			return Catalog{}, fmt.Errorf("duplicate agent code %q", agent.Code)
-		}
-		if agent.VerificationInput == nil {
-			agent.VerificationInput = map[string]any{}
 		}
 		codes[agent.Code] = struct{}{}
 		if agent.Runtime.Role != "root" && agent.Runtime.Role != "specialist" {
