@@ -1,6 +1,6 @@
 # Demo Agent 인수인계서
 
-최종 갱신: 2026-09-06 — provider readiness 제거와 catalog 즉시 공개
+최종 갱신: 2026-09-06 — demo-agent 독립 Docker 배포 구성
 
 ## 역할과 실행
 
@@ -12,6 +12,11 @@
   비용 없는 결정적 시연용이고 `openai`는 `OPEN_AI_KEY`가 필요하다.
 - `cmd/catalog-bootstrap`은 Spring API에 Function Contract와 Agent manifest를 등록하고 ACTIVE Version을
   publish한다. 기존 데이터가 다르면 drift로 중단하며 ACTIVE 데이터를 덮어쓰지 않는다.
+- `Dockerfile`과 `compose.yaml`은 장시간 실행하는 `demo-agent`만 빌드·기동한다. `catalog-bootstrap`은
+  catalog 공개가 필요할 때 개발 PC 또는 별도 일회성 작업에서 실행하며 운영 컨테이너에 포함하지 않는다.
+- NAS 배포 시 컨테이너 내부 `8090`을 호스트 `27999`로 매핑하고 Nginx Proxy Manager가
+  `demo-agent-store.sr-domain.win` HTTPS를 NAS의 `192.168.0.2:27999`로 전달한다. Go는 Spring DB나
+  다른 컨테이너를 소유하지 않는 외부 공급자 서비스다.
 
 ## Catalog 공개 계약 — 2026-09-06
 

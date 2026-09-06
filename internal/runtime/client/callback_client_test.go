@@ -189,7 +189,7 @@ func TestCallbackClientRejectsOversizedRequest(t *testing.T) {
 
 func TestCallbackClientSetsDeadlineOnCallbackRequest(t *testing.T) {
 	client := testCallbackClient(t, "http://127.0.0.1")
-	client.newHTTPClient = func(string, string) *http.Client {
+	client.newHTTPClient = func(string, string, string) *http.Client {
 		return &http.Client{Transport: roundTripper(func(request *http.Request) (*http.Response, error) {
 			deadline, exists := request.Context().Deadline()
 			if !exists {
@@ -244,7 +244,7 @@ func TestCallbackClientRejectsCredentialAndFragmentURLs(t *testing.T) {
 
 func TestCallbackClientRejectsOversizedResponse(t *testing.T) {
 	client := testCallbackClient(t, "http://127.0.0.1")
-	client.newHTTPClient = func(string, string) *http.Client {
+	client.newHTTPClient = func(string, string, string) *http.Client {
 		return &http.Client{Transport: roundTripper(func(*http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,

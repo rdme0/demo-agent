@@ -1,0 +1,27 @@
+name: demo-agent
+
+services:
+  demo-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - --config
+      - /app/config/application.yaml
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8090"
+      - --mode
+      - ${DEMO_AGENT_MODE:?DEMO_AGENT_MODE is required}
+    ports:
+      - "27999:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s

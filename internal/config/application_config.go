@@ -159,8 +159,8 @@ func validatePort(port int) error {
 
 func validateCallbackOrigin(value string) error {
 	parsed, err := url.ParseRequestURI(value)
-	if err != nil || parsed.Scheme != "http" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return fmt.Errorf("callback.allowedOrigins must contain exact HTTP origins")
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("callback.allowedOrigins must contain exact HTTP or HTTPS origins")
 	}
 	return nil
 }

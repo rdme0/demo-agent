@@ -21,7 +21,28 @@ go run ./cmd/demo-agent --config config/application.yaml --mode openai
 
 OpenAI Responses 요청에는 애플리케이션이 정한 `max_output_tokens` 상한을 보내지 않습니다. 출력 길이는 선택한 모델과 OpenAI provider의 정책을 따르며, provider가 `incomplete`를 반환하면 해당 Agent 호출은 실패로 처리합니다.
 
-Root Agent 세 개(`investment-analysis`, `shopping-assistant`, `travel-planner`)만 declared dependency를 병렬 callback으로 호출해 결과를 종합합니다. EIP-3009은 요청별 32-byte random authorization nonce를 사용하므로 독립 payment는 같은 payer라도 병렬 settlement할 수 있습니다. specialist는 resolver를 호출하지 않습니다. callback URL은 config의 exact origin만 허용합니다: local Spring `http://127.0.0.1:8080`/`http://localhost:8080`, Compose `http://api:8080`. local loopback은 IPv4 loopback으로 고정되고 redirect와 1 MiB 초과 body는 거절합니다. 노드 하나의 예산은 30초지만 callback transport는 target call path의 남은 depth를 곱한다. 즉 depth 2는 120초, leaf depth 5는 30초이고 root의 aggregate는 `30 × 5 = 150초`이다. `payment.maxDependencyDepth`가 AgentStore contract의 5와 다르면 Go runtime은 기동하지 않는다.
+Root Agent 세 개(`investment-analysis`, `shopping-assistant`, `travel-planner`)만 declared dependency를 병렬 callback으로 호출해 결과를 종합합니다. EIP-3009은 요청별 32-byte random authorization nonce를 사용하므로 독립 payment는 같은 payer라도 병렬 settlement할 수 있습니다. specialist는 resolver를 호출하지 않습니다. callback URL은 config의 exact origin만 허용합니다: local Spring `http://127.0.0.1:8080`/`http://localhost:8080`, Compose `http://api:8080`, 배포 Spring `https://api-agent-store.sr-domain.win`. local loopback은 IPv4 loopback으로 고정되고 redirect와 1 MiB 초과 body는 거절합니다. 노드 하나의 예산은 30초지만 callback transport는 target call path의 남은 depth를 곱한다. 즉 depth 2는 120초, leaf depth 5는 30초이고 root의 aggregate는 `30 × 5 = 150초`이다. `payment.maxDependencyDepth`가 AgentStore contract의 5와 다르면 Go runtime은 기동하지 않는다.
+
+## Docker 배포
+
+이 저장소의 `Dockerfile`과 `compose.yaml`은 Go `demo-agent`만 실행합니다. Spring API, PostgreSQL, 프론트엔드는 별도 배포 대상이며 Go 컨테이너에 포함하지 않습니다. `catalog-bootstrap`은 운영 서버로 계속 실행하는 서비스가 아니라 catalog를 Spring에 등록할 때 한 번 실행하는 관리용 CLI이므로 이미지에도 포함하지 않습니다.
+
+NAS의 Container Manager에서는 이 저장소를 별도 Project로 올리고 `.env`에 다음 값을 입력합니다.
+
+```dotenv
+OPEN_AI_KEY=<OpenAI API key>
+DEMO_AGENT_MODE=openai
+```
+
+그 다음 실행합니다.
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+컨테이너는 내부 `8090`을 호스트 `27999`로 공개합니다. Nginx Proxy Manager에서 `demo-agent-store.sr-domain.win`을 `http://192.168.0.2:27999`로 연결하고 HTTPS 인증서를 적용합니다. 외부에 27999를 직접 공개하지 말고 Nginx Proxy Manager를 통해서만 접근합니다. 공개 endpoint는 catalog bootstrap을 실행할 때 `https://demo-agent-store.sr-domain.win`으로 사용합니다.
 
 ## catalog bootstrap
 

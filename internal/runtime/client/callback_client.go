@@ -23,7 +23,7 @@ const (
 )
 
 type CallbackClient struct {
-	newHTTPClient      func(string, string) *http.Client
+	newHTTPClient      func(string, string, string) *http.Client
 	allowedOrigins     map[string]struct{}
 	perDepthTimeout    time.Duration
 	maxDependencyDepth int
@@ -134,7 +134,7 @@ func (client *CallbackClient) invokeDependency(ctx context.Context, callbackURL 
 	request.Header.Set("Authorization", authorization)
 	request.Header.Set("Idempotency-Key", newUUID())
 
-	httpClient := client.newHTTPClient(callbackURL.Hostname(), callbackURL.Port())
+	httpClient := client.newHTTPClient(callbackURL.Scheme, callbackURL.Hostname(), callbackURL.Port())
 	response, err := httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("runtime callback request failed: %w", err)
@@ -196,17 +196,20 @@ func (client *CallbackClient) validateCallbackURL(rawURL string) (*url.URL, erro
 
 func parseExactOrigin(rawOrigin string) (*url.URL, error) {
 	parsed, err := url.Parse(rawOrigin)
-	if err != nil || parsed.Scheme != "http" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return nil, fmt.Errorf("runtime callback origin must be an exact HTTP origin")
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("runtime callback origin must be an exact HTTP or HTTPS origin")
 	}
 	parsed.Host = strings.ToLower(parsed.Host)
 	return parsed, nil
 }
 
-func newPinnedHTTPClient(host string, port string) *http.Client {
+func newPinnedHTTPClient(scheme string, host string, port string) *http.Client {
 	pinnedAddress, resolveErr := resolvePinnedAddress(host)
 	if port == "" {
 		port = "80"
+		if scheme == "https" {
+			port = "443"
+		}
 	}
 
 	dialer := &net.Dialer{}

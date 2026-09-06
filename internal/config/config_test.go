@@ -87,6 +87,18 @@ func TestLoadRejectsInvalidCallbackOrigin(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsHTTPSCallbackOrigin(t *testing.T) {
+	content := strings.Replace(
+		baseConfig(),
+		"    - http://127.0.0.1:8080\n    - http://localhost:8080\n    - http://api:8080",
+		"    - https://api.example.test",
+		1,
+	)
+	if _, err := Load(configFile(t, content), Overrides{}, environment(nil)); err != nil {
+		t.Fatalf("load HTTPS callback origin: %v", err)
+	}
+}
+
 func TestLoadRejectsNonPositivePaymentPerDepthTimeout(t *testing.T) {
 	content := strings.Replace(baseConfig(), "perDepthTimeoutSeconds: 30", "perDepthTimeoutSeconds: 0", 1)
 	_, err := Load(configFile(t, content), Overrides{}, environment(nil))
