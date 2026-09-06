@@ -19,6 +19,8 @@ go run ./cmd/demo-agent --config config/application.yaml --host 127.0.0.1 --port
 go run ./cmd/demo-agent --config config/application.yaml --mode openai
 ```
 
+OpenAI Responses 요청에는 애플리케이션이 정한 `max_output_tokens` 상한을 보내지 않습니다. 출력 길이는 선택한 모델과 OpenAI provider의 정책을 따르며, provider가 `incomplete`를 반환하면 해당 Agent 호출은 실패로 처리합니다.
+
 Root Agent 세 개(`investment-analysis`, `shopping-assistant`, `travel-planner`)만 declared dependency를 병렬 callback으로 호출해 결과를 종합합니다. EIP-3009은 요청별 32-byte random authorization nonce를 사용하므로 독립 payment는 같은 payer라도 병렬 settlement할 수 있습니다. specialist는 resolver를 호출하지 않습니다. callback URL은 config의 exact origin만 허용합니다: local Spring `http://127.0.0.1:8080`/`http://localhost:8080`, Compose `http://api:8080`. local loopback은 IPv4 loopback으로 고정되고 redirect와 1 MiB 초과 body는 거절합니다. 노드 하나의 예산은 30초지만 callback transport는 target call path의 남은 depth를 곱한다. 즉 depth 2는 120초, leaf depth 5는 30초이고 root의 aggregate는 `30 × 5 = 150초`이다. `payment.maxDependencyDepth`가 AgentStore contract의 5와 다르면 Go runtime은 기동하지 않는다.
 
 ## catalog bootstrap

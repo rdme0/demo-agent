@@ -71,6 +71,8 @@ call-path 계산을 사용하고, Go는 `maxDependencyDepth`가 AgentStore contr
 
 OpenAI mode는 Function Contract JSON Schema를 그대로 전송하지 않는다. OpenAI Structured Outputs가 지원하지 않는
 JSON Schema `format` 키(예: `uri`)를 요청 payload에서 재귀적으로 제거하고, 원래 계약 schema는 보존한다.
+OpenAI Responses 요청에는 애플리케이션의 `max_output_tokens` 상한을 보내지 않으며 출력 길이는 모델/provider 정책을 따른다.
+provider가 `incomplete`를 반환하면 부분 텍스트를 성공으로 저장하거나 자동 재시도하지 않고 기존 실패·reconciliation 경계를 유지한다.
 OpenAI specialist에는 웹 검색과 최소 3개 HTTPS 출처 요구를, root Markdown Agent에는 첫 줄 `# 제목` 요구를
 명시적으로 추가한다. 이 최소 출처 수는 `structuredResult`에서도 강제하며, 출처 title의 제어문자·마크다운
 구분자는 transport 경계에서 정제한다. 응답이 계약을 만족하지 않으면 결제 후 성공으로 위조하지 않고 기존
