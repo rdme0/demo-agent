@@ -18,6 +18,7 @@ func NewMiddleware(payment config.PaymentConfig, publicBaseURL string, facilitat
 	if facilitator == nil {
 		facilitator = x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{URL: payment.FacilitatorURL})
 	}
+	facilitator = NewRetryingFacilitatorClient(facilitator)
 
 	routes := make(x402http.RoutesConfig, len(payment.Agents))
 	for code, terms := range payment.Agents {
