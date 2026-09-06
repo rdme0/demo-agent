@@ -15,8 +15,12 @@
 - `Dockerfile`과 `compose.yaml`은 장시간 실행하는 `demo-agent`만 빌드·기동한다. `catalog-bootstrap`은
   catalog 공개가 필요할 때 개발 PC 또는 별도 일회성 작업에서 실행하며 운영 컨테이너에 포함하지 않는다.
 - NAS 배포 시 컨테이너 내부 `8090`을 호스트 `27999`로 매핑하고 Nginx Proxy Manager가
-  `demo-agent-store.sr-domain.win` HTTPS를 NAS의 `192.168.0.2:27999`로 전달한다. Go는 Spring DB나
+  `demo-agent.sr-domain.win` HTTPS를 NAS의 `192.168.0.2:27999`로 전달한다. Go는 Spring DB나
   다른 컨테이너를 소유하지 않는 외부 공급자 서비스다.
+- Nginx Proxy Manager가 TLS를 종료하면 x402 SDK가 요청을 HTTP로 인식할 수 있다. 운영 `.env`의
+  `DEMO_AGENT_PUBLIC_BASE_URL=https://demo-agent.sr-domain.win`을 사용해 402 `resource.url`을
+  catalog endpoint와 일치시킨다. 이 값이 비어 있으면 로컬처럼 요청의 실제 주소를 사용하므로
+  로컬 HTTP 실행은 그대로 유지된다.
 
 ## Catalog 공개 계약 — 2026-09-06
 

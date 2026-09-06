@@ -44,7 +44,7 @@ func New(configuration config.Config, facilitator x402SDK.FacilitatorClient) (*g
 		return nil, fmt.Errorf("create agent controller: %w", err)
 	}
 
-	paymentMiddleware := x402.NewMiddleware(configuration.Payment, facilitator)
+	paymentMiddleware := x402.NewMiddleware(configuration.Payment, configuration.PublicBaseURL, facilitator)
 
 	return server.NewRouter(agentHTTPController, paymentMiddleware)
 }

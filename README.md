@@ -6,7 +6,7 @@ AgentStore의 x402 reference scenario용 독립 Go resource server입니다. Spr
 
 ## 실행
 
-checked-in [config/application.yaml](config/application.yaml)이 host, port, fixture 기본 mode, facilitator, callback allowlist를 소유합니다. `.env`의 `DEMO_AGENT_MODE`는 기본 mode를 덮어쓰며, CLI `--mode`가 있으면 CLI가 최우선입니다. `.env`에는 OpenAI 비밀값도 둘 수 있습니다.
+checked-in [config/application.yaml](config/application.yaml)이 host, port, fixture 기본 mode, facilitator, callback allowlist를 소유합니다. `.env`의 `DEMO_AGENT_MODE`는 기본 mode를 덮어쓰며, CLI `--mode`가 있으면 CLI가 최우선입니다. `.env`에는 OpenAI 비밀값도 둘 수 있습니다. 운영 프록시 뒤에서 x402 리소스 URL을 HTTPS로 고정해야 할 때만 `DEMO_AGENT_PUBLIC_BASE_URL`을 설정합니다.
 
 ```powershell
 Copy-Item .env.example .env
@@ -32,6 +32,8 @@ NAS의 Container Manager에서는 이 저장소를 별도 Project로 올리고 `
 ```dotenv
 OPEN_AI_KEY=<OpenAI API key>
 DEMO_AGENT_MODE=openai
+# 운영 프록시의 공개 원본 주소 (로컬에서는 생략)
+DEMO_AGENT_PUBLIC_BASE_URL=https://demo-agent.sr-domain.win
 ```
 
 그 다음 실행합니다.
@@ -42,7 +44,9 @@ docker compose up -d
 docker compose ps
 ```
 
-컨테이너는 내부 `8090`을 호스트 `27999`로 공개합니다. Nginx Proxy Manager에서 `demo-agent-store.sr-domain.win`을 `http://192.168.0.2:27999`로 연결하고 HTTPS 인증서를 적용합니다. 외부에 27999를 직접 공개하지 말고 Nginx Proxy Manager를 통해서만 접근합니다. 공개 endpoint는 catalog bootstrap을 실행할 때 `https://demo-agent-store.sr-domain.win`으로 사용합니다.
+컨테이너는 내부 `8090`을 호스트 `27999`로 공개합니다. Nginx Proxy Manager에서 `demo-agent.sr-domain.win`을 `http://192.168.0.2:27999`로 연결하고 HTTPS 인증서를 적용합니다. 외부에 27999를 직접 공개하지 말고 Nginx Proxy Manager를 통해서만 접근합니다. 공개 endpoint는 catalog bootstrap을 실행할 때 `https://demo-agent.sr-domain.win`으로 사용합니다.
+
+Nginx Proxy Manager가 TLS를 종료하면 Go 프로세스가 보는 연결은 HTTP가 되므로, 운영 `.env`에는 `DEMO_AGENT_PUBLIC_BASE_URL=https://demo-agent.sr-domain.win`을 넣습니다. 그러면 x402 402 응답의 `resource.url`이 catalog에 등록된 HTTPS endpoint와 일치합니다. 로컬에서는 이 변수를 비워 두어 요청의 실제 HTTP 주소를 그대로 사용합니다.
 
 ## catalog bootstrap
 
@@ -55,7 +59,7 @@ go run ./cmd/catalog-bootstrap `
   --demo-agent-base-url http://127.0.0.1:8090
 ```
 
-Compose는 같은 CLI에 `http://api:8080`, `http://demo-agent:8090`를 넘깁니다. `DEMO_AGENT_MODE`은 Compose가 `--mode` flag로 전달하는 명시적 interpolation 값입니다.
+Compose의 `DEMO_AGENT_MODE`은 `--mode` flag로 전달하는 명시적 interpolation 값입니다. 운영에서 공개 URL을 사용하는 경우 `.env`의 `DEMO_AGENT_PUBLIC_BASE_URL`도 함께 읽습니다.
 
 ## HTTP 계약
 

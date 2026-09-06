@@ -102,7 +102,38 @@ func TestServerProtectsConfiguredRoutesWithX402(t *testing.T) {
 	}
 }
 
+func TestServerUsesConfiguredPublicBaseURLForPaymentResource(t *testing.T) {
+	application := newX402ServerWithPublicBaseURL(t, "https://demo-agent.example.test")
+	request := httptest.NewRequest(http.MethodPost, "/agents/weather-forecast/invoke", nil)
+	response := httptest.NewRecorder()
+
+	application.ServeHTTP(response, request)
+
+	if response.Code != http.StatusPaymentRequired {
+		t.Fatalf("expected 402, got %d: %s", response.Code, response.Body.String())
+	}
+	decoded, err := base64.StdEncoding.DecodeString(response.Header().Get("Payment-Required"))
+	if err != nil {
+		t.Fatalf("decode payment required: %v", err)
+	}
+	var payload struct {
+		Resource struct {
+			URL string `json:"url"`
+		} `json:"resource"`
+	}
+	if err := json.Unmarshal(decoded, &payload); err != nil {
+		t.Fatalf("decode payment required JSON: %v", err)
+	}
+	if payload.Resource.URL != "https://demo-agent.example.test/agents/weather-forecast/invoke" {
+		t.Fatalf("unexpected resource URL: %q", payload.Resource.URL)
+	}
+}
+
 func newX402Server(t *testing.T) *gin.Engine {
+	return newX402ServerWithPublicBaseURL(t, "")
+}
+
+func newX402ServerWithPublicBaseURL(t *testing.T, publicBaseURL string) *gin.Engine {
 	t.Helper()
 
 	terms := make(map[string]config.PaymentTerms, len(catalog.Definitions()))
@@ -115,7 +146,8 @@ func newX402Server(t *testing.T) *gin.Engine {
 	}
 
 	application, err := app.New(config.Config{
-		AgentMode: config.AgentModeFixture,
+		AgentMode:     config.AgentModeFixture,
+		PublicBaseURL: publicBaseURL,
 		Payment: config.PaymentConfig{
 			FacilitatorURL:     "https://facilitator.test",
 			PerDepthTimeout:    30 * time.Second,

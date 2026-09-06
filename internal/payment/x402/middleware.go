@@ -1,6 +1,8 @@
 package x402
 
 import (
+	"strings"
+
 	"demo-agent/internal/config"
 	paymentModel "demo-agent/internal/payment/model"
 
@@ -12,14 +14,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewMiddleware(payment config.PaymentConfig, facilitator x402.FacilitatorClient) gin.HandlerFunc {
+func NewMiddleware(payment config.PaymentConfig, publicBaseURL string, facilitator x402.FacilitatorClient) gin.HandlerFunc {
 	if facilitator == nil {
 		facilitator = x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{URL: payment.FacilitatorURL})
 	}
 
 	routes := make(x402http.RoutesConfig, len(payment.Agents))
 	for code, terms := range payment.Agents {
+		resourceURL := ""
+		if publicBaseURL != "" {
+			resourceURL = strings.TrimRight(publicBaseURL, "/") + "/agents/" + code + "/invoke"
+		}
 		routes["POST /agents/"+code+"/invoke"] = x402http.RouteConfig{
+			Resource: resourceURL,
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",

@@ -13,12 +13,13 @@ import (
 )
 
 type Config struct {
-	Host      string
-	Port      int
-	AgentMode string
-	OpenAI    OpenAIConfig
-	Payment   PaymentConfig
-	Callback  CallbackConfig
+	Host          string
+	Port          int
+	PublicBaseURL string
+	AgentMode     string
+	OpenAI        OpenAIConfig
+	Payment       PaymentConfig
+	Callback      CallbackConfig
 }
 
 type CallbackConfig struct {
@@ -77,6 +78,12 @@ func Load(path string, overrides Overrides, lookup func(string) (string, bool)) 
 	if err := validatePort(port); err != nil {
 		return Config{}, err
 	}
+	publicBaseURL := strings.TrimRight(strings.TrimSpace(environmentValue(lookup, "DEMO_AGENT_PUBLIC_BASE_URL")), "/")
+	if publicBaseURL != "" {
+		if err := validatePublicBaseURL(publicBaseURL); err != nil {
+			return Config{}, err
+		}
+	}
 	agentMode := values.Agent.Mode
 	if environmentMode, exists := lookup("DEMO_AGENT_MODE"); exists && strings.TrimSpace(environmentMode) != "" {
 		agentMode = strings.TrimSpace(environmentMode)
@@ -87,7 +94,12 @@ func Load(path string, overrides Overrides, lookup func(string) (string, bool)) 
 	if agentMode != AgentModeFixture && agentMode != AgentModeOpenAI {
 		return Config{}, fmt.Errorf("agent mode must be fixture or openai")
 	}
-	configuration := Config{Host: host, Port: port, AgentMode: agentMode}
+	configuration := Config{
+		Host:          host,
+		Port:          port,
+		PublicBaseURL: publicBaseURL,
+		AgentMode:     agentMode,
+	}
 	if agentMode == AgentModeOpenAI {
 		apiKey, err := required(lookup, "OPEN_AI_KEY")
 		if err != nil {
@@ -150,6 +162,14 @@ func required(lookup func(string) (string, bool), key string) (string, error) {
 	return value, nil
 }
 
+func environmentValue(lookup func(string) (string, bool), key string) string {
+	value, exists := lookup(key)
+	if !exists {
+		return ""
+	}
+	return value
+}
+
 func validatePort(port int) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("server.port must be an integer between 1 and 65535")
@@ -161,6 +181,20 @@ func validateCallbackOrigin(value string) error {
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return fmt.Errorf("callback.allowedOrigins must contain exact HTTP or HTTPS origins")
+	}
+	return nil
+}
+
+func validatePublicBaseURL(value string) error {
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
+		parsed.Host == "" ||
+		parsed.User != nil ||
+		parsed.Path != "" ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" {
+		return fmt.Errorf("DEMO_AGENT_PUBLIC_BASE_URL must contain an exact HTTP or HTTPS origin")
 	}
 	return nil
 }

@@ -16,6 +16,9 @@ func TestLoadReadsCheckedInConfigurationAndAppliesFlags(t *testing.T) {
 	if configuration.ListenAddress() != "0.0.0.0:9090" {
 		t.Fatalf("unexpected listener address: %s", configuration.ListenAddress())
 	}
+	if configuration.PublicBaseURL != "" {
+		t.Fatalf("unexpected default public base URL: %q", configuration.PublicBaseURL)
+	}
 	if len(configuration.Callback.AllowedOrigins) != 3 {
 		t.Fatalf("unexpected callback origins: %#v", configuration.Callback.AllowedOrigins)
 	}
@@ -27,6 +30,31 @@ func TestLoadReadsCheckedInConfigurationAndAppliesFlags(t *testing.T) {
 	}
 	if configuration.Payment.InvocationTimeout != 150*time.Second {
 		t.Fatalf("unexpected payment invocation timeout: %s", configuration.Payment.InvocationTimeout)
+	}
+}
+
+func TestLoadReadsPublicBaseURLFromEnvironment(t *testing.T) {
+	configuration, err := Load(
+		configFile(t, baseConfig()),
+		Overrides{},
+		environment(map[string]string{"DEMO_AGENT_PUBLIC_BASE_URL": "https://demo-agent.example.test/"}),
+	)
+	if err != nil {
+		t.Fatalf("load public base URL: %v", err)
+	}
+	if configuration.PublicBaseURL != "https://demo-agent.example.test" {
+		t.Fatalf("unexpected public base URL: %q", configuration.PublicBaseURL)
+	}
+}
+
+func TestLoadRejectsPublicBaseURLPath(t *testing.T) {
+	_, err := Load(
+		configFile(t, baseConfig()),
+		Overrides{},
+		environment(map[string]string{"DEMO_AGENT_PUBLIC_BASE_URL": "https://demo-agent.example.test/base"}),
+	)
+	if err == nil {
+		t.Fatal("expected public base URL path to fail")
 	}
 }
 
