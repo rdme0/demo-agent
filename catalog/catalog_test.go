@@ -35,6 +35,10 @@ func TestCatalogRejectsUnknownFieldAndDuplicateCode(t *testing.T) {
 	if _, err := Parse(append(append([]byte(nil), embeddedAgents...), []byte("\nunknown: value\n")...)); err == nil {
 		t.Fatal("expected unknown YAML field to fail")
 	}
+	withRemovedTokenField := strings.Replace(string(embeddedAgents), "      role: root\n", "      role: root\n      maxOutputTokens: 999\n", 1)
+	if _, err := Parse([]byte(withRemovedTokenField)); err == nil || !strings.Contains(err.Error(), "maxOutputTokens") {
+		t.Fatalf("expected removed maxOutputTokens field to fail as unknown, got %v", err)
+	}
 	contracts, agents, found := strings.Cut(string(embeddedAgents), "\nagents:\n")
 	if !found {
 		t.Fatal("catalog must contain agents")

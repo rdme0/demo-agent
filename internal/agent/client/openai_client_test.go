@@ -27,6 +27,9 @@ func TestOpenAIClientGeneratesStructuredWebSearchResponse(t *testing.T) {
 		if payload["model"] != "gpt-5.6-luna" {
 			t.Fatalf("unexpected model: %#v", payload["model"])
 		}
+		if _, exists := payload["max_output_tokens"]; exists {
+			t.Fatalf("application must not cap OpenAI output tokens: %#v", payload["max_output_tokens"])
+		}
 		if instructions, ok := payload["instructions"].(string); !ok || !strings.Contains(instructions, "당신은") {
 			t.Fatalf("expected Korean instructions: %#v", payload["instructions"])
 		}
