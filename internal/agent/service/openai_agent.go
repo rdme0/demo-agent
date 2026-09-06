@@ -77,7 +77,6 @@ func (agent OpenAIAgent) Invoke(ctx context.Context, invocation model.Invocation
 		Input:             string(input),
 		Schema:            schema,
 		RequiresWebSearch: agent.definition.RequiresWebSearch,
-		MaxOutputTokens:   agent.definition.MaxOutputTokens,
 	})
 	if err != nil {
 		return model.Result{}, fmt.Errorf("invoke %s agent: %w", agent.Code(), err)

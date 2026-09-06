@@ -17,7 +17,6 @@ import (
 
 const (
 	responseFormatName        = "demo_agent_result"
-	analysisMaxOutputTokens   = 1024
 	maxWebSearchCalls         = 3
 	webSearchSourcesInclude   = "web_search_call.action.sources"
 	maximumSourcesPerResponse = 5
@@ -28,7 +27,6 @@ type ResponseRequest struct {
 	Input             string
 	Schema            map[string]any
 	RequiresWebSearch bool
-	MaxOutputTokens   int64
 }
 
 type Source struct {
@@ -62,10 +60,9 @@ func NewOpenAIClient(apiKey string, model string, options ...option.RequestOptio
 
 func (client *OpenAIClient) Generate(ctx context.Context, request ResponseRequest) (ResponseResult, error) {
 	parameters := responses.ResponseNewParams{
-		Instructions:    openai.String(request.Instructions),
-		Input:           responses.ResponseNewParamsInputUnion{OfString: openai.String(request.Input)},
-		MaxOutputTokens: openai.Int(outputTokenLimit(request.MaxOutputTokens)),
-		Model:           client.model,
+		Instructions: openai.String(request.Instructions),
+		Input:        responses.ResponseNewParamsInputUnion{OfString: openai.String(request.Input)},
+		Model:        client.model,
 		Reasoning: shared.ReasoningParam{
 			Effort: shared.ReasoningEffortLow,
 		},
@@ -156,14 +153,6 @@ func normalizeSchemaValue(value any) any {
 	default:
 		return value
 	}
-}
-
-func outputTokenLimit(requested int64) int64 {
-	if requested > 0 {
-		return requested
-	}
-
-	return analysisMaxOutputTokens
 }
 
 func completedWebSearch(output []responses.ResponseOutputItemUnion) bool {

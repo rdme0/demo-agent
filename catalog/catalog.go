@@ -37,7 +37,6 @@ type Runtime struct {
 	Prompt            string `yaml:"prompt"`
 	Fixture           any    `yaml:"fixture"`
 	RequiresWebSearch bool   `yaml:"requiresWebSearch"`
-	MaxOutputTokens   int64  `yaml:"maxOutputTokens"`
 }
 
 type FunctionContract struct {
@@ -70,7 +69,6 @@ type Definition struct {
 	RequiresWebSearch   bool           `yaml:"-"`
 	AggregateMarkdown   bool           `yaml:"-"`
 	MinimumSources      int            `yaml:"-"`
-	MaxOutputTokens     int64          `yaml:"-"`
 	Dependencies        []Dependency   `yaml:"dependencies"`
 	Runtime             Runtime        `yaml:"runtime"`
 }
@@ -185,14 +183,6 @@ func Parse(content []byte) (Catalog, error) {
 		agent.RequiresWebSearch = agent.Runtime.RequiresWebSearch
 		agent.AggregateMarkdown = agent.Runtime.Role == "root"
 		agent.MinimumSources = 3
-		agent.MaxOutputTokens = agent.Runtime.MaxOutputTokens
-		if agent.MaxOutputTokens == 0 {
-			if agent.AggregateMarkdown {
-				agent.MaxOutputTokens = 2048
-			} else {
-				agent.MaxOutputTokens = 1536
-			}
-		}
 	}
 	sort.Slice(parsed.FunctionContracts, func(left, right int) bool {
 		return parsed.FunctionContracts[left].Code < parsed.FunctionContracts[right].Code
